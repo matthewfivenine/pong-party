@@ -54,7 +54,7 @@ function loop(){
 loop();
 
 async function loadLeaderboard(){
-  const res = await fetch("https://YOUR-RENDER-URL.onrender.com/leaderboard");
+  const res = await fetch("https://pong-party.onrender.com/leaderboard");
   const data = await res.json();
   const list = document.getElementById("leaderboard");
   list.innerHTML="";
