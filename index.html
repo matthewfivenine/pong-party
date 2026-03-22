@@ -1,73 +1,79 @@
-// server.js
-import { WebSocketServer } from 'ws';
-import http from 'http';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Pong Party</title>
+<style>
+  body{margin:0;background:#050a0e;color:#00ffe7;font-family:'Share Tech Mono',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}
+  canvas{border:1px solid rgba(0,255,231,.18)}
+  #lobby,#game{display:flex;flex-direction:column;align-items:center;gap:10px}
+  #sbox,#game{display:none}
+</style>
+</head>
+<body>
 
-const PORT = process.env.PORT || 10000;
+<div id="lobby">
+  <h1>Pong Party</h1>
+  <input id="ri" placeholder="ROOM NAME">
+  <button id="cb">CREATE</button>
+  <input id="ji" placeholder="ROOM NAME">
+  <button id="jb">JOIN</button>
+  <div id="sbox">
+    Share: <span id="surl"></span>
+  </div>
+</div>
 
-const server = http.createServer();
-const wss = new WebSocketServer({ noServer: true });
+<div id="game">
+  <canvas id="c" width="800" height="450"></canvas>
+</div>
 
-const rooms = {};
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=cv.width,H=cv.height;
+let role=null, ws=null, room=null;
+let state={ball:{x:.5,y:.5},padLeft:.4,padRight:.4,scores:{left:0,right:0}};
+function rnd(){return Math.random().toString(36).slice(2,7).toUpperCase();}
+const $=id=>document.getElementById(id);
 
-function createRoom(name) {
-  if (!rooms[name]) rooms[name] = { host: null, guest: null };
-  return rooms[name];
+function connect(roomName){
+  room=roomName;
+  ws=new WebSocket(`${location.origin.replace(/^http/,'ws')}/party?room=${encodeURIComponent(roomName)}`);
+  ws.onopen=()=>console.log('🟢 WS connected to',room);
+  ws.onmessage=ev=>{
+    const msg=JSON.parse(ev.data);
+    if(msg.type==='role') role=msg.role;
+    if(msg.type==='state') state=msg.state;
+    if(msg.type==='end'){alert('Opponent disconnected'); location.reload();}
+    if(role && state) startGameUI();
+  };
 }
 
-server.on('upgrade', (req, socket, head) => {
-  const url = req.url || '';
-  if (!url.startsWith('/party/')) {
-    socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
-    socket.destroy();
-    return;
-  }
+function startGameUI(){
+  $('lobby').style.display='none';
+  $('game').style.display='flex';
+}
 
-  wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+$('cb').onclick=()=>{ const v=$('ri').value.trim().toUpperCase()||rnd(); connect(v); $('sbox').style.display='block'; $('surl').textContent=`${location.origin}/?room=${v}`; };
+$('jb').onclick=()=>{ const v=$('ji').value.trim().toUpperCase(); if(v) connect(v); };
+
+cv.addEventListener('mousemove',e=>{
+  const y=(e.offsetY/H);
+  if(role==='host'){state.padLeft=y; ws?.send(JSON.stringify({type:'pad',pad:y}))}
+  if(role==='guest'){state.padRight=y; ws?.send(JSON.stringify({type:'pad',pad:y}))}
 });
 
-wss.on('connection', (ws, req) => {
-  const roomName = decodeURIComponent(req.url.split('/party/')[1]);
-  const room = createRoom(roomName);
-
-  if (!room.host) {
-    room.host = ws;
-    ws.role = 'host';
-    ws.send(JSON.stringify({ type: 'assigned', role: 'host' }));
-    console.log(`👑 Host joined ${roomName}`);
-  } else if (!room.guest) {
-    room.guest = ws;
-    ws.role = 'guest';
-    ws.send(JSON.stringify({ type: 'assigned', role: 'guest' }));
-    console.log(`🎯 Guest joined ${roomName}`);
-  } else {
-    ws.send(JSON.stringify({ type: 'full' }));
-    ws.close();
-    return;
-  }
-
-  // Start game when both players are connected
-  if (room.host && room.guest) {
-    const initialState = { ball: { x: 0.5, y: 0.5 }, padLeft: 0.41, padRight: 0.41, scores: { left: 0, right: 0 } };
-    room.host.send(JSON.stringify({ type: 'start', state: initialState }));
-    room.guest.send(JSON.stringify({ type: 'start', state: initialState }));
-    console.log(`🚀 STARTING GAME ${roomName}`);
-  }
-
-  ws.on('message', msg => {
-    // Forward messages to other player
-    try {
-      const data = JSON.parse(msg);
-      if (ws.role === 'host' && room.guest) room.guest.send(JSON.stringify(data));
-      if (ws.role === 'guest' && room.host) room.host.send(JSON.stringify(data));
-    } catch (e) { console.error(e); }
-  });
-
-  ws.on('close', () => {
-    if (ws.role === 'host') room.host = null;
-    if (ws.role === 'guest') room.guest = null;
-    if (!room.host && !room.guest) delete rooms[roomName];
-    console.log(`❌ Disconnect in ${roomName}`);
-  });
-});
-
-server.listen(PORT, '0.0.0.0', () => console.log(`✅ Server running on port ${PORT}`));
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#fff';
+  ctx.fillRect(state.ball.x*W-5,state.ball.y*H-5,10,10);
+  ctx.fillStyle='#0ff';
+  ctx.fillRect(0,state.padLeft*H,10,H*.18);
+  ctx.fillStyle='#f63';
+  ctx.fillRect(W-10,state.padRight*H,10,H*.18);
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>
