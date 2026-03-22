@@ -9,11 +9,12 @@ function joinGame() {
   const username = document.getElementById("username").value;
   const room = document.getElementById("room").value;
 
-  socket = io("https://pong-party.onrender.com", { transports: ["websocket"] });
+  socket = io("https://pong-party.onrender.com");
 
   socket.emit("join", { username, roomCode: room });
 
   socket.on("state", (state) => targetState = state);
+  socket.on("game_over", (winner) => alert("Winner: " + winner));
 }
 
 function lerp(a,b,t){return a+(b-a)*t;}
@@ -21,11 +22,11 @@ function lerp(a,b,t){return a+(b-a)*t;}
 function interpolate(){
   if(!currentState || !targetState) return targetState;
   return {
+    ...targetState,
     ball:{
       x: lerp(currentState.ball.x,targetState.ball.x,0.2),
       y: lerp(currentState.ball.y,targetState.ball.y,0.2)
-    },
-    paddles: targetState.paddles
+    }
   }
 }
 
@@ -41,27 +42,46 @@ canvas.addEventListener("touchmove",(e)=>{
   if(socket) socket.emit("move",{y:paddleY});
 });
 
-function loop(){
-  if(targetState){
-    currentState = interpolate() || targetState;
-    ctx.clearRect(0,0,600,400);
-    ctx.fillRect(currentState.ball.x,currentState.ball.y,10,10);
-    ctx.fillRect(10,currentState.paddles.p1,10,60);
-    ctx.fillRect(580,currentState.paddles.p2,10,60);
-  }
-  requestAnimationFrame(loop);
-}
-loop();
+function draw(state){
+  ctx.fillStyle="#020617";
+  ctx.fillRect(0,0,600,400);
 
-async function loadLeaderboard(){
-  const res = await fetch("https://pong-party.onrender.com/leaderboard");
-  const data = await res.json();
-  const list = document.getElementById("leaderboard");
-  list.innerHTML="";
-  data.forEach(p=>{
-    const li=document.createElement("li");
-    li.textContent=`${p.username} - ${p.elo}`;
-    list.appendChild(li);
-  });
+  ctx.strokeStyle="#334155";
+  ctx.setLineDash([5,10]);
+  ctx.beginPath();
+  ctx.moveTo(300,0);
+  ctx.lineTo(300,400);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.fillStyle="white";
+  ctx.font="30px Arial";
+  ctx.fillText(state.score.p1,250,50);
+  ctx.fillText(state.score.p2,330,50);
+
+  ctx.fillStyle="#22c55e";
+  ctx.beginPath();
+  ctx.arc(state.ball.x,state.ball.y,6,0,Math.PI*2);
+  ctx.fill();
+
+  ctx.fillStyle="#38bdf8";
+  ctx.fillRect(10,state.paddles.p1,10,60);
+
+  ctx.fillStyle="#f97316";
+  ctx.fillRect(580,state.paddles.p2,10,60);
 }
-loadLeaderboard();
+
+function gameLoop(){
+  ctx.clearRect(0,0,600,400);
+
+  if(!targetState){
+    ctx.fillStyle="white";
+    ctx.fillText("Waiting for opponent...",200,200);
+  } else {
+    currentState = interpolate() || targetState;
+    draw(currentState);
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+gameLoop();

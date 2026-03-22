@@ -1,20 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Pong Multiplayer</title>
+  <title>Pong Party</title>
+  <style>
+    body { margin:0; background:#0f172a; color:white; text-align:center; font-family:Arial;}
+    h1 { margin:20px; }
+    #menu { margin:20px; }
+    input, button { padding:10px; margin:5px; border-radius:5px; border:none;}
+    button { background:#22c55e; color:white; cursor:pointer;}
+    canvas { background:black; margin:auto; display:block; border:3px solid white; border-radius:10px;}
+  </style>
 </head>
 <body>
-  <h2>Pong</h2>
+<h1>🏓 Pong Party</h1>
+<div id="menu">
   <input id="username" placeholder="Username"/>
-  <input id="room" placeholder="Room code (optional)"/>
+  <input id="room" placeholder="Room Code"/>
   <button onclick="joinGame()">Join</button>
-
-  <canvas id="game" width="600" height="400"></canvas>
-
-  <h3>Leaderboard</h3>
-  <ul id="leaderboard"></ul>
-
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <script src="game.js"></script>
+</div>
+<canvas id="game" width="600" height="400"></canvas>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="game.js"></script>
 </body>
 </html>
