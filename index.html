@@ -399,7 +399,6 @@
       // === FULL ORIGINAL SCRIPT STARTS HERE ===
       const BASE = 'https://pong-party.onrender.com';
       const wsURL = r => BASE.replace(/^https/, 'wss') + '/party/' + encodeURIComponent(r);
-
       const pageURL = r => BASE + '/?room=' + encodeURIComponent(r);
       const cv = document.getElementById('c'), ctx = cv.getContext('2d');
       let W, H;
