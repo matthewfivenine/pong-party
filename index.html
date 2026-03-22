@@ -53,7 +53,7 @@
       pointer-events: none;
       z-index: 100;
       background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, .13) 2px,
-        rgba(0, 0, 0, .13) 4px);
+          rgba(0, 0, 0, .13) 4px);
     }
 
     body::after {
@@ -322,27 +322,33 @@
     }
 
     @keyframes flicker {
+
       0%,
       94%,
       100% {
         opacity: 1;
       }
+
       95% {
         opacity: .6;
       }
+
       97% {
         opacity: 1;
       }
+
       98% {
         opacity: .4;
       }
     }
 
     @keyframes blink {
+
       0%,
       49% {
         opacity: 1;
       }
+
       50%,
       100% {
         opacity: 0;
@@ -396,38 +402,141 @@
 
   <script>
     document.addEventListener('DOMContentLoaded', () => {
-      // === FULL ORIGINAL SCRIPT STARTS HERE ===
       const BASE = 'https://pong-party.onrender.com';
-      const wsURL = r =>
-        'wss://pong-party.onrender.com/party/' + encodeURIComponent(r);
-
-      const pageURL = r =>
-        'https://pong-party.onrender.com/?room=' + encodeURIComponent(r);
+      const wsURL = r => BASE.replace('https://', 'wss://').replace('http://', 'ws://') + '/party/' + encodeURIComponent(r);
+      const pageURL = r => BASE + '/?room=' + encodeURIComponent(r);
 
       const cv = document.getElementById('c'), ctx = cv.getContext('2d');
       let W, H;
       function rsz() { W = Math.min(window.innerWidth - 24, 800); H = Math.round(W * .5625); cv.width = W; cv.height = H; }
       rsz();
+      addEventListener('resize', rsz);
+
       const PW = () => Math.round(W * .014), PH = () => Math.round(H * .18), PM = () => Math.round(W * .025), BR = () => Math.max(5, Math.round(W * .012));
+
       let role = null, ws = null, alive = false;
       let G = { ball: { x: .5, y: .5 }, padLeft: .41, padRight: .41, scores: { left: 0, right: 0 } };
-      const pts = []; let fa = 0, fc = '#fff', trail = [], myY = .41;
+
       const $ = id => document.getElementById(id);
+
       function qRoom() { return new URLSearchParams(location.search).get('room'); }
+
+      // === HOST / JOIN BUTTONS ===
       $('cb').onclick = () => { const v = $('ri').value.trim().toUpperCase(); host(v || rnd()); };
       $('jb').onclick = () => { const v = $('ji').value.trim().toUpperCase(); if (v) join(v); };
       function rnd() { return Math.random().toString(36).slice(2, 7).toUpperCase(); }
+
+      // === HOST / JOIN LOGIC ===
       function host(room) {
-        const url = pageURL(room); $('sbox').style.display = 'flex'; $('surl').textContent = url;
-        $('surl').onclick = () => { if (navigator.share) navigator.share({ title: 'PONG', url }); else { navigator.clipboard?.writeText(url); $('chint').textContent = 'COPIED'; setTimeout(() => $('chint').textContent = 'TAP TO COPY', 2000); } };
-        setSt('waiting for opponent...'); connect(room); history.replaceState({}, '', '/?room=' + room);
+        const url = pageURL(room);
+        $('sbox').style.display = 'flex';
+        $('surl').textContent = url;
+        $('surl').onclick = () => {
+          if (navigator.share) navigator.share({ title: 'PONG', url });
+          else {
+            navigator.clipboard?.writeText(url);
+            $('chint').textContent = 'COPIED';
+            setTimeout(() => $('chint').textContent = 'TAP TO COPY', 2000);
+          }
+        };
+        setSt('waiting for opponent...');
+        connect(room);
+        history.replaceState({}, '', '/?room=' + room);
       }
-      function join(room) { setSt('joining ' + room + '...'); connect(room); history.replaceState({}, '', '/?room=' + room); }
+
+      function join(room) {
+        setSt('joining ' + room + '...');
+        connect(room);
+        history.replaceState({}, '', '/?room=' + room);
+      }
+
       function setSt(m) { $('stmsg').style.display = 'block'; $('stmsg').textContent = m; }
+
       addEventListener('DOMContentLoaded', () => { const r = qRoom(); if (r) join(r); });
-      // ... rest of your JS logic here (draw, loop, pads, WebSocket handling) ...
-      addEventListener('resize', rsz);
-      // === FULL ORIGINAL SCRIPT ENDS HERE ===
+
+      // === WEBSOCKET CONNECT ===
+      function connect(room) {
+        ws = new WebSocket(wsURL(room));
+
+        ws.onopen = () => { alive = true; setSt('connected'); };
+        ws.onmessage = e => { handleMessage(JSON.parse(e.data)); };
+        ws.onclose = () => { alive = false; setSt('disconnected'); };
+      }
+
+      // === HANDLE MESSAGES FROM SERVER ===
+      function handleMessage(msg) {
+        switch (msg.type) {
+          case 'assigned':
+            role = msg.role;
+            break;
+          case 'waiting':
+            setSt('waiting for opponent...');
+            break;
+          case 'start':
+            $('lobby').style.display = 'none';
+            $('game').style.display = 'flex';
+            $('stmsg').style.display = 'none';
+            animate();
+            break;
+          case 'state':
+            G.ball = msg.ball;
+            G.padLeft = msg.padLeft;
+            G.padRight = msg.padRight;
+            G.scores = msg.scores;
+            break;
+          case 'scored':
+            G.scores = msg.scores;
+            break;
+          case 'gameover':
+            alert(`Winner: ${msg.winner}`);
+            break;
+        }
+      }
+
+      // === SEND PAD POSITION TO SERVER ===
+      function sendInput(y) {
+        if (!alive || !ws || ws.readyState !== WebSocket.OPEN) return;
+        ws.send(JSON.stringify({ type: 'input', y }));
+      }
+
+      // === CANVAS INTERACTION ===
+      let dragging = false;
+      cv.addEventListener('pointerdown', e => { dragging = true; updatePad(e); });
+      cv.addEventListener('pointermove', e => { if (dragging) updatePad(e); });
+      cv.addEventListener('pointerup', () => { dragging = false; });
+      cv.addEventListener('pointerleave', () => { dragging = false; });
+
+      function updatePad(e) {
+        const rect = cv.getBoundingClientRect();
+        let y = (e.clientY - rect.top) / rect.height;
+        y = Math.max(0, Math.min(1 - PH(), y));
+        if (role === 'host') G.padLeft = y;
+        if (role === 'guest') G.padRight = y;
+        sendInput(y);
+      }
+
+      // === GAME LOOP & DRAW ===
+      function animate() {
+        ctx.clearRect(0, 0, W, H);
+
+        // Ball
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(G.ball.x * W, G.ball.y * H, BR(), 0, 2 * Math.PI);
+        ctx.fill();
+
+        // Paddles
+        ctx.fillStyle = 'var(--p1)';
+        ctx.fillRect(PM(), G.padLeft * H, PW(), PH());
+        ctx.fillStyle = 'var(--p2)';
+        ctx.fillRect(W - PM() - PW(), G.padRight * H, PW(), PH());
+
+        // Scores
+        $('sl').textContent = G.scores.left;
+        $('sr').textContent = G.scores.right;
+
+        requestAnimationFrame(animate);
+      }
     });
   </script>
 </body>
