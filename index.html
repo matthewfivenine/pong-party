@@ -363,91 +363,85 @@
   </div>
 
   <script src="https://cdn.socket.io/4.9.1/socket.io.min.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const BASE = 'https://pong-party.onrender.com';
-      const $ = id => document.getElementById(id);
-      const cv = $('c'), ctx = cv.getContext('2d');
-      let W,H;
-      function rsz(){ W=Math.min(window.innerWidth-24,800); H=Math.round(W*0.5625); cv.width=W; cv.height=H; }
-      rsz(); addEventListener('resize',rsz);
 
-      let socket=null, role=null;
-      let G={padLeft:0.41, padRight:0.41, ball:{x:0.5,y:0.5}};
+<!-- Your patch script for paddle movement goes here -->
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const BASE = 'https://pong-party.onrender.com';
+    const $ = id => document.getElementById(id);
+    const cv = $('c'), ctx = cv.getContext('2d');
+    let W,H;
+    function rsz(){ W=Math.min(window.innerWidth-24,800); H=Math.round(W*0.5625); cv.width=W; cv.height=H; }
+    rsz(); addEventListener('resize',rsz);
 
-      const qRoom=()=>new URLSearchParams(location.search).get('room');
+    let socket=null, role=null;
+    let G={padLeft:0.41, padRight:0.41, ball:{x:0.5,y:0.5}};
 
-      function connect(roomName){
-        socket = io(BASE,{ path:'/socket.io' });
+    const qRoom=()=>new URLSearchParams(location.search).get('room');
 
-        socket.on('connect', ()=>{
-          console.log('🟢 WS connected to',roomName);
-          socket.emit('join-room', roomName);
-          $('stmsg').textContent='waiting for opponent...';
-          $('stmsg').style.display='block';
-        });
+    function connect(roomName){
+      socket = io(BASE,{ path:'/socket.io' }); // <--- io() requires the above script
 
-        socket.on('assign-role', r=>{
-          role = r;
-          console.log('role assigned:', role);
-        });
-
-        socket.on('start', ()=>{
-          $('lobby').style.display='none';
-          $('game').style.display='flex';
-          $('stmsg').style.display='none';
-          console.log('🚀 Game started!');
-          loop();
-        });
-
-        socket.on('game-data', data=>{
-          if(data.ball) G.ball=data.ball;
-          if(data.padLeft!==undefined) G.padLeft=data.padLeft;
-          if(data.padRight!==undefined) G.padRight=data.padRight;
-          if(data.scores){ $('sl').textContent=data.scores.left; $('sr').textContent=data.scores.right; }
-          draw();
-        });
-      }
-
-      $('cb').onclick=()=>{ const v=$('ri').value.trim().toUpperCase()||Math.random().toString(36).slice(2,7).toUpperCase(); connect(v); };
-      $('jb').onclick=()=>{ const v=$('ji').value.trim().toUpperCase(); if(v) connect(v); };
-      const r=qRoom(); if(r) connect(r);
-
-      // --- Paddle Input ---
-      function sendInput(y){ if(socket && socket.connected && role) socket.emit('paddle-move',{y}); }
-
-      cv.addEventListener('mousemove', e=>{
-        const y = e.offsetY/H;
-        if(role==='host') G.padLeft=y;
-        else if(role==='guest') G.padRight=y;
-        sendInput(y);
+      socket.on('connect', ()=>{
+        socket.emit('join-room', roomName);
+        $('stmsg').textContent='waiting for opponent...';
+        $('stmsg').style.display='block';
       });
 
-      cv.addEventListener('touchmove', e=>{
-        e.preventDefault();
-        const rect=cv.getBoundingClientRect();
-        const y=(e.touches[0].clientY-rect.top)/H;
-        if(role==='host') G.padLeft=y;
-        else if(role==='guest') G.padRight=y;
-        sendInput(y);
-      },{passive:false});
+      socket.on('assign-role', r=>{ role=r; });
 
-      function draw(){
-        ctx.clearRect(0,0,W,H);
-        // paddles
-        ctx.fillStyle='#00ffe7'; ctx.fillRect(10, G.padLeft*H, 10, H*0.18);
-        ctx.fillStyle='#ff6b35'; ctx.fillRect(W-20, G.padRight*H, 10, H*0.18);
-        // ball
-        if(G.ball){
-          ctx.fillStyle='#fff';
-          ctx.beginPath();
-          ctx.arc(G.ball.x*W, G.ball.y*H, 8,0,2*Math.PI);
-          ctx.fill();
-        }
-      }
+      socket.on('start', ()=>{
+        $('lobby').style.display='none';
+        $('game').style.display='flex';
+        $('stmsg').style.display='none';
+        loop();
+      });
 
-      function loop(){ draw(); requestAnimationFrame(loop); }
+      socket.on('game-data', data=>{
+        if(data.ball) G.ball=data.ball;
+        if(data.padLeft!==undefined) G.padLeft=data.padLeft;
+        if(data.padRight!==undefined) G.padRight=data.padRight;
+        if(data.scores){ $('sl').textContent=data.scores.left; $('sr').textContent=data.scores.right; }
+        draw();
+      });
+    }
+
+    $('cb').onclick=()=>{ const v=$('ri').value.trim().toUpperCase()||Math.random().toString(36).slice(2,7).toUpperCase(); connect(v); };
+    $('jb').onclick=()=>{ const v=$('ji').value.trim().toUpperCase(); if(v) connect(v); };
+    const r=qRoom(); if(r) connect(r);
+
+    function sendInput(y){ if(socket && socket.connected && role) socket.emit('paddle-move',{y}); }
+
+    cv.addEventListener('mousemove', e=>{
+      const y = e.offsetY/H;
+      if(role==='host') G.padLeft=y;
+      else if(role==='guest') G.padRight=y;
+      sendInput(y);
     });
-  </script>
+
+    cv.addEventListener('touchmove', e=>{
+      e.preventDefault();
+      const rect=cv.getBoundingClientRect();
+      const y=(e.touches[0].clientY-rect.top)/H;
+      if(role==='host') G.padLeft=y;
+      else if(role==='guest') G.padRight=y;
+      sendInput(y);
+    },{passive:false});
+
+    function draw(){
+      ctx.clearRect(0,0,W,H);
+      ctx.fillStyle='#00ffe7'; ctx.fillRect(10, G.padLeft*H, 10, H*0.18);
+      ctx.fillStyle='#ff6b35'; ctx.fillRect(W-20, G.padRight*H, 10, H*0.18);
+      if(G.ball){
+        ctx.fillStyle='#fff';
+        ctx.beginPath();
+        ctx.arc(G.ball.x*W, G.ball.y*H, 8,0,2*Math.PI);
+        ctx.fill();
+      }
+    }
+
+    function loop(){ draw(); requestAnimationFrame(loop); }
+  });
+</script>
 </body>
 </html>
