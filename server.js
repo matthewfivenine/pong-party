@@ -6,6 +6,7 @@ const crypto = require('crypto');
 const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 8888;
+server.listen(PORT, '0.0.0.0', () => console.log(`Server running on port ${PORT}`));
 const INDEX = path.join(__dirname, 'index.html');
 
 // === Serve index.html ===
