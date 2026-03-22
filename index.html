@@ -81,15 +81,18 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(d.type==='assigned') role=d.role;
       if(d.type==='waiting'){ $('ov').style.display='flex'; $('wt').textContent='WAITING FOR OPPONENT'; $('wt').style.display='block'; }
       if(d.type==='start'){ $('ov').style.display='none'; $('wt').style.display='none'; }
-      if(d.type==='state'){ 
-        G=d; 
-        draw(); 
-        if(!ws._sentInput && role){ // send initial pad pos immediately
-          sendInput(role==='host'?G.padLeft:G.padRight);
-          ws._sentInput=true;
-        }
+      if(d.type==='state' || d.type==='scored'){ 
+          G=d; 
+          draw(); 
+          // update the score display
+          $('sl').textContent = G.scores.left;
+          $('sr').textContent = G.scores.right;
+
+          if(!ws._sentInput && role){ // send initial pad pos immediately
+            sendInput(role==='host'?G.padLeft:G.padRight);
+            ws._sentInput=true;
+          }
       }
-      if(d.type==='scored'){ G=d; draw(); }
       if(d.type==='gameover'){ $('ov').style.display='flex'; $('wt').textContent='GAME OVER'; G=d; draw(); }
     };
     ws.onclose=()=>console.log('❌ WS closed');
