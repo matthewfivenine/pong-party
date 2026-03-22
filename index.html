@@ -398,8 +398,12 @@
     document.addEventListener('DOMContentLoaded', () => {
       // === FULL ORIGINAL SCRIPT STARTS HERE ===
       const BASE = 'https://pong-party.onrender.com';
-      const wsURL = r => BASE.replace(/^https/, 'wss') + '/party/' + encodeURIComponent(r);
-      const pageURL = r => BASE + '/?room=' + encodeURIComponent(r);
+      const wsURL = r =>
+        'wss://pong-party.onrender.com/party/' + encodeURIComponent(r);
+
+      const pageURL = r =>
+        'https://pong-party.onrender.com/?room=' + encodeURIComponent(r);
+
       const cv = document.getElementById('c'), ctx = cv.getContext('2d');
       let W, H;
       function rsz() { W = Math.min(window.innerWidth - 24, 800); H = Math.round(W * .5625); cv.width = W; cv.height = H; }
