@@ -399,86 +399,72 @@
     </div>
     <div id="badge"></div>
   </div>
+
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const BASE = 'https://pong-party.onrender.com';
-      const wsURL = r => BASE.replace('https://', 'wss://').replace('http://', 'ws://') + '/party/' + encodeURIComponent(r);
+      const wsURL = r => BASE.replace(/^https/, 'wss') + '/party/' + encodeURIComponent(r);
       const pageURL = r => BASE + '/?room=' + encodeURIComponent(r);
-
       const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-      let W, H;
-      function rsz() { W = Math.min(window.innerWidth - 24, 800); H = Math.round(W * .5625); cv.width = W; cv.height = H; }
-      rsz(); addEventListener('resize', rsz);
-
-      let ws = null, role = null, alive = false;
-      const G = { ball: { x: .5, y: .5 }, padLeft: .41, padRight: .41, scores: { left: 0, right: 0 } };
+      let role = null, ws = null;
+      let G = { ball: { x: 0.5, y: 0.5 }, padLeft: 0.41, padRight: 0.41, scores: { left: 0, right: 0 } };
       const $ = id => document.getElementById(id);
 
-      const PAD_MARGIN = 0.025, PAD_H = 0.18, PAD_W = 0.014;
-      function BR() { return Math.max(5, Math.round(W * 0.012)); }
+      function rsz() { cv.width = window.innerWidth * 0.9; cv.height = cv.width * 0.5625; }
+      rsz(); window.addEventListener('resize', rsz);
 
       function connect(room) {
         ws = new WebSocket(wsURL(room));
-
         ws.onopen = () => console.log('🟢 WS connected to', room);
         ws.onmessage = e => {
           const msg = JSON.parse(e.data);
-
-          if (msg.type === 'start') {
-            $('lobby').style.display = 'none';
-            $('game').style.display = 'flex';
-            $('stmsg').style.display = 'none';
-            alive = true;
-            animate();
-          }
-
-          if (msg.type === 'state' || msg.type === 'scored') {
-            Object.assign(G, msg);
-          }
-
-          if (msg.type === 'gameover') {
-            alert('Winner: ' + msg.winner);
-            alive = false;
-          }
+          if (msg.type === 'assigned') role = msg.role;
+          else if (msg.type === 'start') { document.getElementById('lobby').style.display = 'none'; document.getElementById('game').style.display = 'flex'; animate(); }
+          else if (msg.type === 'state') G = msg;
+          else if (msg.type === 'scored') G.scores = msg.scores;
+          else if (msg.type === 'gameover') { alert(`Winner: ${msg.winner}`); location.reload(); }
         };
       }
 
-      function host(v) {
-        const room = v || Math.random().toString(36).slice(2, 7).toUpperCase();
-        $('sbox').style.display = 'flex'; $('surl').textContent = pageURL(room);
-        $('surl').onclick = () => { navigator.clipboard.writeText(pageURL(room)); $('chint').textContent = 'COPIED'; setTimeout(() => $('chint').textContent = 'TAP TO COPY', 2000); };
-        connect(room);
-        history.replaceState({}, '', '/?room=' + room);
+      function host(room) {
+        const url = pageURL(room); $('sbox').style.display = 'flex'; $('surl').textContent = url;
+        $('surl').onclick = () => { navigator.clipboard.writeText(url); $('chint').textContent = 'COPIED'; setTimeout(() => $('chint').textContent = 'TAP TO COPY', 2000); };
+        connect(room); history.replaceState({}, '', '/?room=' + room);
       }
 
-      function join(v) { connect(v); history.replaceState({}, '', '/?room=' + v); }
+      function join(room) { connect(room); history.replaceState({}, '', '/?room=' + room); }
 
-      const qRoom = () => new URLSearchParams(location.search).get('room');
-      if (qRoom()) join(qRoom());
+      $('cb').onclick = () => { const v = $('ri').value.trim().toUpperCase(); host(v || Math.random().toString(36).slice(2, 7).toUpperCase()); };
+      $('jb').onclick = () => { const v = $('ji').value.trim().toUpperCase(); if (v) join(v); };
 
-      $('cb').onclick = () => { host($('ri').value.trim().toUpperCase()); };
-      $('jb').onclick = () => { join($('ji').value.trim().toUpperCase()); };
-
-      // Mouse/touch input
-      cv.addEventListener('pointermove', e => {
-        if (!alive) return;
-        const y = Math.max(0, Math.min(1 - PAD_H, e.offsetY / H));
-        if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'input', y }));
-      });
-
+      // --- DRAWING ---
       function animate() {
-        if (!alive) return;
-        ctx.clearRect(0, 0, W, H);
-
-        // draw paddles
-        ctx.fillStyle = 'var(--p1)'; ctx.fillRect(PAD_MARGIN * W, G.padLeft * H, PAD_W * W, PAD_H * H);
-        ctx.fillStyle = 'var(--p2)'; ctx.fillRect(W - (PAD_MARGIN + PAD_W) * W, G.padRight * H, PAD_W * W, PAD_H * H);
-
-        // draw ball
-        ctx.beginPath(); ctx.arc(G.ball.x * W, G.ball.y * H, BR(), 0, 2 * Math.PI); ctx.fill();
-
+        ctx.clearRect(0, 0, cv.width, cv.height);
+        // ball
+        ctx.fillStyle = 'white';
+        ctx.beginPath();
+        ctx.arc(G.ball.x * cv.width, G.ball.y * cv.height, Math.max(5, cv.width * 0.012), 0, 2 * Math.PI);
+        ctx.fill();
+        // paddles
+        ctx.fillStyle = 'var(--p1)'; ctx.fillRect(0, G.padLeft * cv.height, cv.width * 0.014, cv.height * 0.18);
+        ctx.fillStyle = 'var(--p2)'; ctx.fillRect(cv.width - cv.width * 0.014, G.padRight * cv.height, cv.width * 0.014, cv.height * 0.18);
         requestAnimationFrame(animate);
       }
+
+      // handle dragging (simplified for demo)
+      let dragging = false;
+      cv.addEventListener('pointerdown', e => { dragging = true; });
+      cv.addEventListener('pointerup', e => { dragging = false; });
+      cv.addEventListener('pointermove', e => {
+        if (dragging && role) {
+          const y = Math.max(0, Math.min(1 - 0.18, e.offsetY / cv.height));
+          if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: 'input', y }));
+        }
+      });
+
+      // auto-join room from URL
+      const params = new URLSearchParams(location.search);
+      if (params.get('room')) join(params.get('room'));
     });
   </script>
 </body>
