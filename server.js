@@ -1,38 +1,11 @@
 import http from 'http';
 import fs from 'fs';
-import path from 'path';
+import url from 'url';
 import { WebSocketServer } from 'ws';
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
+const HTML = fs.readFileSync('./index.html', 'utf-8');
 
-// --- HTTP SERVER ---
-const server = http.createServer((req, res) => {
-  if (req.url.startsWith('/party/')) return; // allow WS upgrade
-
-  const filePath = path.join(process.cwd(), 'index.html');
-
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(500);
-      return res.end('Error loading index.html');
-    }
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(data);
-  });
-});
-
-// --- GAME CONSTANTS ---
-const PAD_H = 0.18;
-const PAD_MARGIN = 0.025;
-const PAD_W = 0.014;
-const BALL_R = 0.012;
-const SPEED0 = 0.007;
-const SPEED_MAX = 0.018;
-const SPEED_INC = 0.00025;
-const WIN = 7;
-const TICK = 1000 / 60;
-
-// --- ROOMS ---
 const rooms = new Map();
 
 function newRoom() {
@@ -41,8 +14,8 @@ function newRoom() {
     guest: null,
     ball: { x: 0.5, y: 0.5 },
     vel: { x: 0, y: 0 },
-    pad_l: 0.5 - PAD_H / 2,
-    pad_r: 0.5 - PAD_H / 2,
+    padLeft: 0.41,
+    padRight: 0.41,
     scores: { left: 0, right: 0 },
     playing: false,
     stop: false
@@ -50,154 +23,139 @@ function newRoom() {
 }
 
 function resetBall(r, dir = 1) {
-  const angle = Math.random() * 0.5 - 0.25;
+  const angle = (Math.random() - 0.5) * Math.PI / 2;
   r.ball = { x: 0.5, y: 0.5 };
-  r.vel = { x: Math.cos(angle) * SPEED0 * dir, y: Math.sin(angle) * SPEED0 };
+  r.vel = { x: Math.cos(angle) * 0.007 * dir, y: Math.sin(angle) * 0.007 };
 }
 
 function broadcast(r, msg) {
   const data = JSON.stringify(msg);
-  ['host', 'guest'].forEach(k => {
-    const ws = r[k];
-    if (ws && ws.readyState === 1) ws.send(data);
+  [r.host, r.guest].forEach(sock => {
+    if (sock && sock.readyState === sock.OPEN) sock.send(data);
   });
 }
 
-// --- GAME LOOP ---
 function gameLoop(roomId) {
-  const r = rooms.get(roomId);
-  if (!r) return;
+  const room = rooms.get(roomId);
+  if (!room) return;
+  const TICK = 1000 / 60; // 60fps
+  const BALL_R = 0.012, PAD_H = 0.18, PAD_W = 0.014, PAD_MARGIN = 0.025;
+  const SPEED_INC = 0.00025, SPEED_MAX = 0.018, WIN = 7;
 
-  console.log(`🎮 Game loop started for room ${roomId}`);
+  function loop() {
+    if (!room.playing || room.stop) return;
 
-  const loop = () => {
-    if (!r.playing || r.stop) return;
-
-    const b = r.ball, v = r.vel;
+    const b = room.ball;
+    const v = room.vel;
+    const pl = room.padLeft;
+    const pr = room.padRight;
 
     b.x += v.x;
     b.y += v.y;
 
-    if (b.y < 0 || b.y > 1) v.y *= -1;
+    // bounce top/bottom
+    if (b.y - BALL_R < 0) { b.y = BALL_R; v.y = Math.abs(v.y); }
+    if (b.y + BALL_R > 1) { b.y = 1 - BALL_R; v.y = -Math.abs(v.y); }
 
+    // left paddle
+    const lx = PAD_MARGIN;
+    if (v.x < 0 && b.x - BALL_R < lx + PAD_W && b.x + BALL_R > lx && b.y > pl && b.y < pl + PAD_H) {
+      const rel = (b.y - (pl + PAD_H / 2)) / (PAD_H / 2);
+      const spd = Math.min(Math.hypot(v.x, v.y) + SPEED_INC, SPEED_MAX);
+      v.x = spd * Math.cos(rel * 0.75);
+      v.y = spd * Math.sin(rel * 0.75);
+      b.x = lx + PAD_W + BALL_R;
+    }
+
+    // right paddle
+    const rx = 1 - PAD_MARGIN - PAD_W;
+    if (v.x > 0 && b.x + BALL_R > rx && b.x - BALL_R < rx + PAD_W && b.y > pr && b.y < pr + PAD_H) {
+      const rel = (b.y - (pr + PAD_H / 2)) / (PAD_H / 2);
+      const spd = Math.min(Math.hypot(v.x, v.y) + SPEED_INC, SPEED_MAX);
+      v.x = -spd * Math.cos(rel * 0.75);
+      v.y = spd * Math.sin(rel * 0.75);
+      b.x = rx - BALL_R;
+    }
+
+    // scoring
     let scored = null;
-    if (b.x < 0) { r.scores.right++; scored = 'right'; }
-    if (b.x > 1) { r.scores.left++; scored = 'left'; }
+    if (b.x + BALL_R < 0) { room.scores.right++; scored = 'right'; }
+    if (b.x - BALL_R > 1) { room.scores.left++; scored = 'left'; }
 
     if (scored) {
-      console.log(`⚽ Score in ${roomId}:`, r.scores);
-      broadcast(r, { type: 'scored', side: scored, scores: r.scores });
-
-      if (r.scores.left >= WIN || r.scores.right >= WIN) {
-        const winner = r.scores.left >= WIN ? 'left' : 'right';
-        console.log(`🏁 Game over in ${roomId}: ${winner}`);
-        r.playing = false;
-        broadcast(r, { type: 'gameover', winner });
+      broadcast(room, { type: 'scored', side: scored, scores: room.scores });
+      if (room.scores.left >= WIN || room.scores.right >= WIN) {
+        const winner = room.scores.left >= WIN ? 'left' : 'right';
+        room.playing = false;
+        broadcast(room, { type: 'gameover', winner });
         return;
       }
-
-      resetBall(r);
+      resetBall(room, room.scores.left > room.scores.right ? 1 : -1);
     } else {
-      broadcast(r, {
-        type: 'state',
-        ball: b,
-        padLeft: r.pad_l,
-        padRight: r.pad_r,
-        scores: r.scores
-      });
+      broadcast(room, { type: 'state', ball: b, padLeft: pl, padRight: pr, scores: room.scores });
     }
 
     setTimeout(loop, TICK);
-  };
-
+  }
   loop();
 }
 
-// --- WS SERVER ---
-const wss = new WebSocketServer({ server });
-
-wss.on('connection', (ws, req) => {
-  const url = req.url.split('?')[0];
-  const parts = url.split('/');
-
-  console.log('🔌 Incoming WS:', req.url);
-
-  if (parts[1] !== 'party' || !parts[2]) {
-    console.log('❌ Invalid WS path');
-    ws.close();
-    return;
-  }
-
-  const roomId = decodeURIComponent(parts[2]);
-
-  if (!rooms.has(roomId)) {
-    console.log(`🆕 Creating room ${roomId}`);
-    rooms.set(roomId, newRoom());
-  }
-
-  const r = rooms.get(roomId);
-
-  let role;
-
-  if (!r.host) {
-    r.host = ws;
-    role = 'host';
-    console.log(`👑 Host joined ${roomId}`);
-    ws.send(JSON.stringify({ type: 'assigned', role }));
-    ws.send(JSON.stringify({ type: 'waiting' }));
-  } else if (!r.guest) {
-    r.guest = ws;
-    role = 'guest';
-    console.log(`🎯 Guest joined ${roomId}`);
-
-    ws.send(JSON.stringify({ type: 'assigned', role }));
-
-    r.scores = { left: 0, right: 0 };
-    r.pad_l = r.pad_r = 0.5 - PAD_H / 2;
-    r.playing = true;
-    r.stop = false;
-
-    resetBall(r);
-
-    console.log(`🚀 STARTING GAME ${roomId}`);
-    broadcast(r, { type: 'start' });
-
-    gameLoop(roomId);
+const server = http.createServer((req, res) => {
+  const p = url.parse(req.url, true);
+  if (p.pathname === '/') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(HTML);
   } else {
-    role = 'spectator';
-    console.log(`👀 Spectator joined ${roomId}`);
-    ws.send(JSON.stringify({ type: 'assigned', role }));
+    res.writeHead(404); res.end();
+  }
+});
+
+const wss = new WebSocketServer({ noServer: true });
+
+wss.on('connection', (ws, request, roomId) => {
+  let room = rooms.get(roomId);
+  if (!room) { room = newRoom(); rooms.set(roomId, room); console.log(`🆕 Creating room ${roomId}`); }
+
+  let role = null;
+  if (!room.host) { room.host = ws; role = 'host'; console.log(`👑 Host joined ${roomId}`); }
+  else if (!room.guest) { room.guest = ws; role = 'guest'; console.log(`🎯 Guest joined ${roomId}`); }
+  else { role = 'spectator'; console.log(`👀 Spectator joined ${roomId}`); }
+
+  if (role === 'guest') {
+    room.scores = { left: 0, right: 0 };
+    room.padLeft = room.padRight = 0.41;
+    room.playing = true;
+    room.stop = false;
+    resetBall(room, Math.random() > 0.5 ? 1 : -1);
+    broadcast(room, { type: 'start' });
+    console.log(`🚀 STARTING GAME ${roomId}`);
+    gameLoop(roomId);
   }
 
-  ws.on('message', msg => {
+  ws.on('message', data => {
     try {
-      const data = JSON.parse(msg);
-      if (data.type === 'input') {
-        const y = Math.max(0, Math.min(1 - PAD_H, data.y));
-        if (role === 'host') r.pad_l = y;
-        if (role === 'guest') r.pad_r = y;
+      const msg = JSON.parse(data.toString());
+      if (msg.type === 'input') {
+        if (role === 'host') room.padLeft = Math.max(0, Math.min(1 - 0.18, msg.y));
+        if (role === 'guest') room.padRight = Math.max(0, Math.min(1 - 0.18, msg.y));
       }
     } catch {}
   });
 
   ws.on('close', () => {
     console.log(`❌ Disconnect in ${roomId}`);
-
-    if (r.host === ws) r.host = null;
-    if (r.guest === ws) r.guest = null;
-
-    r.playing = false;
-    r.stop = true;
-
-    if (!r.host && !r.guest) {
-      console.log(`🗑️ Deleting room ${roomId}`);
-      rooms.delete(roomId);
-    } else {
-      broadcast(r, { type: 'waiting' });
-    }
+    if (room.host === ws) room.host = null;
+    if (room.guest === ws) room.guest = null;
+    room.playing = false; room.stop = true;
+    if (!room.host && !room.guest) rooms.delete(roomId);
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`✅ Server running on port ${PORT}`);
+server.on('upgrade', (req, socket, head) => {
+  const match = req.url.match(/^\/party\/([^\/?]+)/);
+  if (!match) { socket.destroy(); console.log('❌ Invalid WS path'); return; }
+  const roomId = match[1];
+  wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req, roomId));
 });
+
+server.listen(PORT, '0.0.0.0', () => console.log(`✅ Server running on port ${PORT}`));

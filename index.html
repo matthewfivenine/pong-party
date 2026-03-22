@@ -399,7 +399,6 @@
     </div>
     <div id="badge"></div>
   </div>
-
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const BASE = 'https://pong-party.onrender.com';
@@ -412,131 +411,64 @@
       rsz();
       addEventListener('resize', rsz);
 
-      const PW = () => Math.round(W * .014), PH = () => Math.round(H * .18), PM = () => Math.round(W * .025), BR = () => Math.max(5, Math.round(W * .012));
-
-      let role = null, ws = null, alive = false;
-      let G = { ball: { x: .5, y: .5 }, padLeft: .41, padRight: .41, scores: { left: 0, right: 0 } };
-
+      let ws = null, role = null, alive = false;
+      const G = { ball: { x: .5, y: .5 }, padLeft: .41, padRight: .41, scores: { left: 0, right: 0 } };
       const $ = id => document.getElementById(id);
 
-      function qRoom() { return new URLSearchParams(location.search).get('room'); }
-
-      // === HOST / JOIN BUTTONS ===
-      $('cb').onclick = () => { const v = $('ri').value.trim().toUpperCase(); host(v || rnd()); };
-      $('jb').onclick = () => { const v = $('ji').value.trim().toUpperCase(); if (v) join(v); };
-      function rnd() { return Math.random().toString(36).slice(2, 7).toUpperCase(); }
-
-      // === HOST / JOIN LOGIC ===
-      function host(room) {
-        const url = pageURL(room);
-        $('sbox').style.display = 'flex';
-        $('surl').textContent = url;
-        $('surl').onclick = () => {
-          if (navigator.share) navigator.share({ title: 'PONG', url });
-          else {
-            navigator.clipboard?.writeText(url);
-            $('chint').textContent = 'COPIED';
-            setTimeout(() => $('chint').textContent = 'TAP TO COPY', 2000);
-          }
-        };
-        setSt('waiting for opponent...');
-        connect(room);
-        history.replaceState({}, '', '/?room=' + room);
-      }
-
-      function join(room) {
-        setSt('joining ' + room + '...');
-        connect(room);
-        history.replaceState({}, '', '/?room=' + room);
-      }
-
-      function setSt(m) { $('stmsg').style.display = 'block'; $('stmsg').textContent = m; }
-
-      addEventListener('DOMContentLoaded', () => { const r = qRoom(); if (r) join(r); });
-
-      // === WEBSOCKET CONNECT ===
       function connect(room) {
         ws = new WebSocket(wsURL(room));
 
-        ws.onopen = () => { alive = true; setSt('connected'); };
-        ws.onmessage = e => { handleMessage(JSON.parse(e.data)); };
-        ws.onclose = () => { alive = false; setSt('disconnected'); };
-      }
-
-      // === HANDLE MESSAGES FROM SERVER ===
-      function handleMessage(msg) {
-        switch (msg.type) {
-          case 'assigned':
-            role = msg.role;
-            break;
-          case 'waiting':
-            setSt('waiting for opponent...');
-            break;
-          case 'start':
+        ws.onopen = () => console.log('🟢 WS connected to', room);
+        ws.onmessage = e => {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'assigned') role = msg.role;
+          if (msg.type === 'start') {
             $('lobby').style.display = 'none';
             $('game').style.display = 'flex';
             $('stmsg').style.display = 'none';
-            animate();
-            break;
-          case 'state':
-            G.ball = msg.ball;
-            G.padLeft = msg.padLeft;
-            G.padRight = msg.padRight;
-            G.scores = msg.scores;
-            break;
-          case 'scored':
-            G.scores = msg.scores;
-            break;
-          case 'gameover':
-            alert(`Winner: ${msg.winner}`);
-            break;
-        }
+            alive = true; animate();
+          }
+          if (msg.type === 'state' || msg.type === 'scored') {
+            Object.assign(G, msg);
+          }
+          if (msg.type === 'gameover') {
+            alert('Winner: ' + msg.winner);
+            alive = false;
+          }
+        };
       }
 
-      // === SEND PAD POSITION TO SERVER ===
-      function sendInput(y) {
-        if (!alive || !ws || ws.readyState !== WebSocket.OPEN) return;
-        ws.send(JSON.stringify({ type: 'input', y }));
+      function host(v) {
+        const room = v || Math.random().toString(36).slice(2, 7).toUpperCase();
+        $('sbox').style.display = 'flex'; $('surl').textContent = pageURL(room);
+        $('surl').onclick = () => { navigator.clipboard.writeText(pageURL(room)); $('chint').textContent = 'COPIED'; setTimeout(() => $('chint').textContent = 'TAP TO COPY', 2000); };
+        connect(room);
+        history.replaceState({}, '', '/?room=' + room);
       }
 
-      // === CANVAS INTERACTION ===
-      let dragging = false;
-      cv.addEventListener('pointerdown', e => { dragging = true; updatePad(e); });
-      cv.addEventListener('pointermove', e => { if (dragging) updatePad(e); });
-      cv.addEventListener('pointerup', () => { dragging = false; });
-      cv.addEventListener('pointerleave', () => { dragging = false; });
+      function join(v) { connect(v); history.replaceState({}, '', '/?room=' + v); }
 
-      function updatePad(e) {
-        const rect = cv.getBoundingClientRect();
-        let y = (e.clientY - rect.top) / rect.height;
-        y = Math.max(0, Math.min(1 - PH(), y));
-        if (role === 'host') G.padLeft = y;
-        if (role === 'guest') G.padRight = y;
-        sendInput(y);
-      }
+      const qRoom = () => new URLSearchParams(location.search).get('room');
+      addEventListener('DOMContentLoaded', () => { const r = qRoom(); if (r) join(r); });
 
-      // === GAME LOOP & DRAW ===
+      $('cb').onclick = () => { host($('ri').value.trim().toUpperCase()); };
+      $('jb').onclick = () => { join($('ji').value.trim().toUpperCase()); };
+
       function animate() {
+        if (!alive) return;
         ctx.clearRect(0, 0, W, H);
-
-        // Ball
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(G.ball.x * W, G.ball.y * H, BR(), 0, 2 * Math.PI);
-        ctx.fill();
-
-        // Paddles
-        ctx.fillStyle = 'var(--p1)';
-        ctx.fillRect(PM(), G.padLeft * H, PW(), PH());
-        ctx.fillStyle = 'var(--p2)';
-        ctx.fillRect(W - PM() - PW(), G.padRight * H, PW(), PH());
-
-        // Scores
-        $('sl').textContent = G.scores.left;
-        $('sr').textContent = G.scores.right;
-
+        // Draw paddles and ball
+        const PL = G.padLeft * H, PR = G.padRight * H;
+        const BALLX = G.ball.x * W, BALLY = G.ball.y * H;
+        ctx.fillStyle = 'var(--p1)'; ctx.fillRect(PAD_MARGIN * W, PL, PAD_W * W, PAD_H * H);
+        ctx.fillStyle = 'var(--p2)'; ctx.fillRect(W - (PAD_MARGIN + PAD_W) * W, PR, PAD_W * W, PAD_H * H);
+        ctx.beginPath(); ctx.arc(BALLX, BALLY, BR(), 0, 2 * Math.PI); ctx.fill();
         requestAnimationFrame(animate);
       }
+
+      const PAD_MARGIN = 0.025, PAD_H = 0.18, PAD_W = 0.014;
+      function BR() { return Math.max(5, Math.round(W * 0.012)); }
+
     });
   </script>
 </body>
