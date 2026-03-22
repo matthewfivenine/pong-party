@@ -9,7 +9,7 @@ function joinGame() {
   const username = document.getElementById("username").value;
   const room = document.getElementById("room").value;
 
-  socket = io("https://YOUR-RENDER-URL.onrender.com", { transports: ["websocket"] });
+  socket = io("https://pong-party.onrender.com/", { transports: ["websocket"] });
 
   socket.emit("join", { username, roomCode: room });
 
