@@ -397,7 +397,7 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       // === FULL ORIGINAL SCRIPT STARTS HERE ===
-      const BASE = window.location.origin;
+      const BASE = 'https://pong-party.onrender.com';
       const wsURL = r => BASE.replace('https://', 'wss://').replace('http://', 'ws://') + '/party/' + encodeURIComponent(r);
       const pageURL = r => BASE + '/?room=' + encodeURIComponent(r);
       const cv = document.getElementById('c'), ctx = cv.getContext('2d');
