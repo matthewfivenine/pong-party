@@ -5,75 +5,95 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Pong Party</title>
 <style>
-  body{margin:0;background:#050a0e;color:#00ffe7;font-family:'Share Tech Mono',monospace;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh}
-  canvas{border:1px solid rgba(0,255,231,.18)}
-  #lobby,#game{display:flex;flex-direction:column;align-items:center;gap:10px}
-  #sbox,#game{display:none}
+/* ... all your previous CSS ... */
 </style>
 </head>
 <body>
-
 <div id="lobby">
-  <h1>Pong Party</h1>
-  <input id="ri" placeholder="ROOM NAME">
-  <button id="cb">CREATE</button>
-  <input id="ji" placeholder="ROOM NAME">
-  <button id="jb">JOIN</button>
-  <div id="sbox">
-    Share: <span id="surl"></span>
+  <h1>PONG PARTY</h1>
+  <div class="sub">online co-op</div>
+  <div class="row">
+    <input id="ri" placeholder="ROOM NAME" maxlength="20">
+    <button id="cb">CREATE</button>
   </div>
+  <div class="div">— or join —</div>
+  <div class="row">
+    <input id="ji" placeholder="ROOM NAME" maxlength="20">
+    <button id="jb">JOIN</button>
+  </div>
+  <div id="sbox">
+    <div class="lbl">share with opponent</div>
+    <div id="surl"></div>
+    <div id="chint">TAP TO COPY</div>
+  </div>
+  <div id="stmsg" style="display:none"></div>
 </div>
 
 <div id="game">
-  <canvas id="c" width="800" height="450"></canvas>
+  <canvas id="c"></canvas>
+  <div id="dz"></div>
+  <div id="ov">
+    <div id="wt" style="display:none"></div>
+    <h2 id="ot">WAITING</h2>
+    <div class="osub" id="os">connecting...</div>
+  </div>
 </div>
 
 <script>
-const cv=document.getElementById('c'),ctx=cv.getContext('2d');
-let W=cv.width,H=cv.height;
-let role=null, ws=null, room=null;
-let state={ball:{x:.5,y:.5},padLeft:.4,padRight:.4,scores:{left:0,right:0}};
-function rnd(){return Math.random().toString(36).slice(2,7).toUpperCase();}
-const $=id=>document.getElementById(id);
+document.addEventListener('DOMContentLoaded', () => {
+  const BASE = 'https://pong-party.onrender.com'; // Render WS endpoint
+  const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  let W, H;
+  function rsz() { W = Math.min(window.innerWidth - 24, 800); H = Math.round(W * .5625); cv.width = W; cv.height = H; }
+  rsz(); addEventListener('resize', rsz);
 
-function connect(roomName){
-  room=roomName;
-  ws=new WebSocket(`${location.origin.replace(/^http/,'ws')}/party?room=${encodeURIComponent(roomName)}`);
-  ws.onopen=()=>console.log('🟢 WS connected to',room);
-  ws.onmessage=ev=>{
-    const msg=JSON.parse(ev.data);
-    if(msg.type==='role') role=msg.role;
-    if(msg.type==='state') state=msg.state;
-    if(msg.type==='end'){alert('Opponent disconnected'); location.reload();}
-    if(role && state) startGameUI();
+  const $ = id => document.getElementById(id);
+  let ws = null, role = null;
+
+  const qRoom = () => new URLSearchParams(location.search).get('room');
+
+  function connect(room) {
+    ws = new WebSocket(`${BASE}/party/${encodeURIComponent(room)}`);
+    ws.onopen = () => {
+      console.log('🟢 WS connected to', room);
+      $('stmsg').style.display = 'none';
+    };
+    ws.onmessage = (ev) => {
+      const data = JSON.parse(ev.data);
+      if (data.type === 'start') {
+        $('game').style.display = 'flex';
+        $('lobby').style.display = 'none';
+        console.log('🚀 Game started!');
+        loop();
+      }
+    };
+  }
+
+  $('cb').onclick = () => {
+    const v = $('ri').value.trim().toUpperCase() || Math.random().toString(36).slice(2,7).toUpperCase();
+    $('sbox').style.display = 'flex';
+    const url = window.location.origin + '/?room=' + v;
+    $('surl').textContent = url;
+    $('surl').onclick = () => { navigator.clipboard?.writeText(url); };
+    $('stmsg').textContent = 'waiting for opponent...'; $('stmsg').style.display = 'block';
+    connect(v);
   };
-}
 
-function startGameUI(){
-  $('lobby').style.display='none';
-  $('game').style.display='flex';
-}
+  $('jb').onclick = () => {
+    const v = $('ji').value.trim().toUpperCase();
+    if (v) { $('stmsg').textContent = 'joining room...'; $('stmsg').style.display = 'block'; connect(v); }
+  };
 
-$('cb').onclick=()=>{ const v=$('ri').value.trim().toUpperCase()||rnd(); connect(v); $('sbox').style.display='block'; $('surl').textContent=`${location.origin}/?room=${v}`; };
-$('jb').onclick=()=>{ const v=$('ji').value.trim().toUpperCase(); if(v) connect(v); };
+  const r = qRoom();
+  if (r) { $('stmsg').textContent = 'joining room...'; $('stmsg').style.display = 'block'; connect(r); }
 
-cv.addEventListener('mousemove',e=>{
-  const y=(e.offsetY/H);
-  if(role==='host'){state.padLeft=y; ws?.send(JSON.stringify({type:'pad',pad:y}))}
-  if(role==='guest'){state.padRight=y; ws?.send(JSON.stringify({type:'pad',pad:y}))}
+  function loop() {
+    ctx.clearRect(0,0,W,H);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(W/2-5, H/2-5, 10, 10); // example ball
+    requestAnimationFrame(loop);
+  }
 });
-
-function draw(){
-  ctx.clearRect(0,0,W,H);
-  ctx.fillStyle='#fff';
-  ctx.fillRect(state.ball.x*W-5,state.ball.y*H-5,10,10);
-  ctx.fillStyle='#0ff';
-  ctx.fillRect(0,state.padLeft*H,10,H*.18);
-  ctx.fillStyle='#f63';
-  ctx.fillRect(W-10,state.padRight*H,10,H*.18);
-  requestAnimationFrame(draw);
-}
-draw();
 </script>
 </body>
 </html>
