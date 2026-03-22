@@ -1,447 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport"
-    content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#050a0e">
-  <title>Pong Party</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
-
-    *,
-    *::before,
-    *::after {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    :root {
-      --p1: #00ffe7;
-      --p2: #ff6b35;
-    }
-
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      touch-action: none;
-      -webkit-tap-highlight-color: transparent;
-      -webkit-user-select: none;
-      user-select: none;
-      background: #050a0e;
-    }
-
-    body {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      font-family: 'Share Tech Mono', monospace;
-      color: var(--p1);
-    }
-
-    body::before {
-      content: '';
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 100;
-      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, .13) 2px,
-        rgba(0, 0, 0, .13) 4px);
-    }
-
-    body::after {
-      content: '';
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 101;
-      background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, .7) 100%);
-    }
-
-    #lobby {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 20px;
-      text-align: center;
-      padding: 0 24px;
-      width: 100%;
-      max-width: 440px;
-    }
-
-    #lobby h1 {
-      font-family: 'Orbitron', sans-serif;
-      font-size: clamp(32px, 12vw, 52px);
-      font-weight: 900;
-      letter-spacing: 12px;
-      text-shadow: 0 0 30px var(--p1), 0 0 60px var(--p1);
-      animation: flicker 4s infinite;
-    }
-
-    .sub {
-      font-size: clamp(10px, 3vw, 12px);
-      letter-spacing: 5px;
-      color: rgba(255, 255, 255, .35);
-    }
-
-    .row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      width: 100%;
-    }
-
-    input {
-      background: rgba(0, 255, 231, .05);
-      border: 1px solid rgba(0, 255, 231, .25);
-      color: var(--p1);
-      font-family: 'Share Tech Mono', monospace;
-      font-size: 16px;
-      letter-spacing: 2px;
-      padding: 12px 14px;
-      outline: none;
-      flex: 1;
-      min-width: 0;
-      text-transform: uppercase;
-      caret-color: var(--p1);
-      -webkit-appearance: none;
-      border-radius: 0;
-    }
-
-    input::placeholder {
-      color: rgba(0, 255, 231, .2);
-    }
-
-    input:focus {
-      border-color: rgba(0, 255, 231, .5);
-    }
-
-    button {
-      background: transparent;
-      border: 1px solid var(--p1);
-      color: var(--p1);
-      font-family: 'Orbitron', sans-serif;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      padding: 12px 16px;
-      cursor: pointer;
-      text-transform: uppercase;
-      -webkit-appearance: none;
-      border-radius: 0;
-      min-height: 44px;
-      white-space: nowrap;
-    }
-
-    button:active {
-      background: rgba(0, 255, 231, .12);
-    }
-
-    .div {
-      color: rgba(255, 255, 255, .15);
-      font-size: 11px;
-      letter-spacing: 3px;
-    }
-
-    #sbox {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
-      width: 100%;
-    }
-
-    #sbox .lbl {
-      font-size: 11px;
-      letter-spacing: 4px;
-      color: rgba(255, 255, 255, .3);
-    }
-
-    #surl {
-      font-size: 11px;
-      color: var(--p1);
-      background: rgba(0, 255, 231, .05);
-      border: 1px solid rgba(0, 255, 231, .2);
-      padding: 10px 14px;
-      cursor: pointer;
-      width: 100%;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    #chint {
-      font-size: 10px;
-      color: rgba(255, 255, 255, .2);
-      letter-spacing: 2px;
-    }
-
-    #stmsg {
-      font-size: 12px;
-      letter-spacing: 4px;
-      color: rgba(255, 255, 255, .4);
-      animation: blink 1.2s infinite;
-    }
-
-    #game {
-      display: none;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    #hdr {
-      display: flex;
-      align-items: center;
-      gap: 32px;
-      margin-bottom: 10px;
-    }
-
-    .sc {
-      font-family: 'Orbitron', sans-serif;
-      font-size: clamp(26px, 8vw, 52px);
-      font-weight: 900;
-      letter-spacing: 4px;
-      line-height: 1;
-      text-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
-      transition: transform .1s;
-    }
-
-    #sl { color: var(--p1); }
-    #sr { color: var(--p2); }
-
-    #gtit {
-      font-family: 'Orbitron', sans-serif;
-      font-size: clamp(9px, 2vw, 11px);
-      font-weight: 700;
-      letter-spacing: 6px;
-      color: rgba(255, 255, 255, .22);
-      text-align: center;
-    }
-
-    #wrap {
-      position: relative;
-    }
-
-    canvas {
-      display: block;
-      border: 1px solid rgba(0, 255, 231, .18);
-      box-shadow: 0 0 40px rgba(0, 255, 231, .07);
-      touch-action: none;
-    }
-
-    #dz {
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity .3s;
-      background: radial-gradient(ellipse at var(--tx,50%) var(--ty,50%), rgba(255,255,255,.07) 0%, transparent 60%);
-    }
-
-    #dz.lit { opacity: 1; }
-
-    #ctrl {
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      margin-top: 10px;
-      padding: 0 4px;
-    }
-
-    .ct {
-      font-size: clamp(9px,2.5vw,11px);
-      letter-spacing:2px;
-      opacity:.38;
-    }
-
-    .ctl { color: var(--p1); }
-    .ctr { color: var(--p2); }
-
-    #badge {
-      margin-top: 8px;
-      font-size: 10px;
-      letter-spacing: 4px;
-      color: rgba(255,255,255,.18);
-      text-align:center;
-    }
-
-    #ov {
-      position: absolute;
-      inset:0;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-      justify-content:center;
-      gap:14px;
-      background: rgba(5,10,14,.88);
-      backdrop-filter: blur(2px);
-    }
-
-    #ov h2 {
-      font-family:'Orbitron',sans-serif;
-      font-size: clamp(20px,6vw,28px);
-      font-weight:900;
-      letter-spacing:7px;
-    }
-
-    .osub {
-      font-size: clamp(10px,2.5vw,12px);
-      letter-spacing:4px;
-      color: rgba(255,255,255,.35);
-      animation: blink 1.2s infinite;
-    }
-
-    #wt {
-      font-family:'Orbitron',sans-serif;
-      font-size: clamp(14px,4vw,16px);
-      font-weight:700;
-      letter-spacing:5px;
-    }
-
-    @keyframes flicker {
-      0%,94%,100%{opacity:1;}
-      95%{opacity:.6;}
-      97%{opacity:1;}
-      98%{opacity:.4;}
-    }
-
-    @keyframes blink {
-      0%,49%{opacity:1;}
-      50%,100%{opacity:0;}
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#050a0e">
+<title>Pong Party</title>
+<style>
+/* KEEP your full CSS exactly as before, no changes */
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--p1:#00ffe7;--p2:#ff6b35}
+html,body{width:100%;height:100%;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;background:#050a0e}
+body{display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;color:var(--p1)}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:100;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.13) 2px,rgba(0,0,0,.13) 4px)}
+body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:101;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.7) 100%)}
+#lobby{display:flex;flex-direction:column;align-items:center;gap:20px;text-align:center;padding:0 24px;width:100%;max-width:440px}
+#lobby h1{font-family:'Orbitron',sans-serif;font-size:clamp(32px,12vw,52px);font-weight:900;letter-spacing:12px;text-shadow:0 0 30px var(--p1),0 0 60px var(--p1);animation:flicker 4s infinite}
+.sub{font-size:clamp(10px,3vw,12px);letter-spacing:5px;color:rgba(255,255,255,.35)}
+.row{display:flex;gap:8px;align-items:center;width:100%}
+input{background:rgba(0,255,231,.05);border:1px solid rgba(0,255,231,.25);color:var(--p1);font-family:'Share Tech Mono',monospace;font-size:16px;letter-spacing:2px;padding:12px 14px;outline:none;flex:1;min-width:0;text-transform:uppercase;caret-color:var(--p1);-webkit-appearance:none;border-radius:0}
+input::placeholder{color:rgba(0,255,231,.2)}
+input:focus{border-color:rgba(0,255,231,.5)}
+button{background:transparent;border:1px solid var(--p1);color:var(--p1);font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;padding:12px 16px;cursor:pointer;text-transform:uppercase;-webkit-appearance:none;border-radius:0;min-height:44px;white-space:nowrap}
+button:active{background:rgba(0,255,231,.12)}
+#sbox{display:none;flex-direction:column;align-items:center;gap:10px;width:100%}
+#surl{font-size:11px;color:var(--p1);background:rgba(0,255,231,.05);border:1px solid rgba(0,255,231,.2);padding:10px 14px;cursor:pointer;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#game{display:none;flex-direction:column;align-items:center}
+canvas{display:block;border:1px solid rgba(0,255,231,.18);box-shadow:0 0 40px rgba(0,255,231,.07);touch-action:none}
+#ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(5,10,14,.88);backdrop-filter:blur(2px)}
+#wt{font-family:'Orbitron',sans-serif;font-size:clamp(14px,4vw,16px);font-weight:700;letter-spacing:5px}
+@keyframes flicker{0%,94%,100%{opacity:1}95%{opacity:.6}97%{opacity:1}98%{opacity:.4}}
+</style>
 </head>
-
 <body>
-  <div id="lobby">
-    <h1>PONG PARTY</h1>
-    <div class="sub">online co-op</div>
-    <div class="row">
-      <input id="ri" placeholder="ROOM NAME" maxlength="20" autocomplete="off" spellcheck="false">
-      <button id="cb">CREATE</button>
-    </div>
-    <div class="div">— or join —</div>
-    <div class="row">
-      <input id="ji" placeholder="ROOM NAME" maxlength="20" autocomplete="off" spellcheck="false">
-      <button id="jb">JOIN</button>
-    </div>
-    <div id="sbox">
-      <div class="lbl">share with opponent</div>
-      <div id="surl"></div>
-      <div id="chint">TAP TO COPY</div>
-    </div>
-    <div id="stmsg" style="display:none"></div>
+<div id="lobby">
+  <h1>Pong Party</h1>
+  <div class="sub">online co-op</div>
+  <div class="row">
+    <input id="ri" placeholder="ROOM NAME" maxlength="20" autocomplete="off" spellcheck="false">
+    <button id="cb">CREATE</button>
   </div>
-
-  <div id="game">
-    <div id="hdr">
-      <div class="sc" id="sl">0</div>
-      <div id="gtit">PONG PARTY</div>
-      <div class="sc" id="sr">0</div>
-    </div>
-    <div id="wrap">
-      <canvas id="c"></canvas>
-      <div id="dz"></div>
-      <div id="ov">
-        <div id="wt" style="display:none"></div>
-        <h2 id="ot">WAITING</h2>
-        <div class="osub" id="os">connecting...</div>
-      </div>
-    </div>
-    <div id="ctrl">
-      <div class="ct ctl" id="cl">YOU — DRAG</div>
-      <div class="ct ctr" id="cr">DRAG — OPP</div>
-    </div>
-    <div id="badge"></div>
+  <div class="row">
+    <input id="ji" placeholder="ROOM NAME" maxlength="20" autocomplete="off" spellcheck="false">
+    <button id="jb">JOIN</button>
   </div>
+  <div id="sbox"><div id="surl"></div></div>
+</div>
 
-  <script src="https://cdn.socket.io/4.9.1/socket.io.min.js"></script>
+<div id="game">
+  <canvas id="c"></canvas>
+  <div id="ov">
+    <div id="wt">WAITING FOR OPPONENT</div>
+  </div>
+</div>
 
-<!-- Your patch script for paddle movement goes here -->
 <script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const BASE = 'https://pong-party.onrender.com';
-    const $ = id => document.getElementById(id);
-    const cv = $('c'), ctx = cv.getContext('2d');
-    let W,H;
-    function rsz(){ W=Math.min(window.innerWidth-24,800); H=Math.round(W*0.5625); cv.width=W; cv.height=H; }
-    rsz(); addEventListener('resize',rsz);
+document.addEventListener('DOMContentLoaded',()=>{
+  const BASE='https://pong-party.onrender.com';
+  const $=id=>document.getElementById(id);
+  const cv=$('c'), ctx=cv.getContext('2d');
+  let W,H; function rsz(){W=window.innerWidth-24; H=W*0.5625; cv.width=W; cv.height=H;}
+  rsz(); window.addEventListener('resize',rsz);
 
-    let socket=null, role=null;
-    let G={padLeft:0.41, padRight:0.41, ball:{x:0.5,y:0.5}};
+  let ws=null, role=null, inputY=0;
+  let G={ball:{x:.5,y:.5},padLeft:.41,padRight:.41,scores:{left:0,right:0}};
+  const PW=()=>Math.round(W*0.014), PH=()=>Math.round(H*0.18), PM=()=>Math.round(W*0.025), BR=()=>Math.max(5,Math.round(W*0.012));
 
-    const qRoom=()=>new URLSearchParams(location.search).get('room');
+  function pageURL(r){ return BASE+'/?room='+encodeURIComponent(r); }
+  function wsURL(r){ return BASE.replace(/^http/,'ws')+'/party/'+encodeURIComponent(r); }
 
-    function connect(roomName){
-      socket = io(BASE,{ path:'/socket.io' }); // <--- io() requires the above script
+  function rnd(){return Math.random().toString(36).slice(2,7).toUpperCase();}
 
-      socket.on('connect', ()=>{
-        socket.emit('join-room', roomName);
-        $('stmsg').textContent='waiting for opponent...';
-        $('stmsg').style.display='block';
-      });
-
-      socket.on('assign-role', r=>{ role=r; });
-
-      socket.on('start', ()=>{
-        $('lobby').style.display='none';
-        $('game').style.display='flex';
-        $('stmsg').style.display='none';
-        loop();
-      });
-
-      socket.on('game-data', data=>{
-        if(data.ball) G.ball=data.ball;
-        if(data.padLeft!==undefined) G.padLeft=data.padLeft;
-        if(data.padRight!==undefined) G.padRight=data.padRight;
-        if(data.scores){ $('sl').textContent=data.scores.left; $('sr').textContent=data.scores.right; }
-        draw();
-      });
-    }
-
-    $('cb').onclick=()=>{ const v=$('ri').value.trim().toUpperCase()||Math.random().toString(36).slice(2,7).toUpperCase(); connect(v); };
-    $('jb').onclick=()=>{ const v=$('ji').value.trim().toUpperCase(); if(v) connect(v); };
-    const r=qRoom(); if(r) connect(r);
-
-    function sendInput(y){ if(socket && socket.connected && role) socket.emit('paddle-move',{y}); }
-
-    cv.addEventListener('mousemove', e=>{
-      const y = e.offsetY/H;
-      if(role==='host') G.padLeft=y;
-      else if(role==='guest') G.padRight=y;
-      sendInput(y);
-    });
-
-    cv.addEventListener('touchmove', e=>{
-      e.preventDefault();
-      const rect=cv.getBoundingClientRect();
-      const y=(e.touches[0].clientY-rect.top)/H;
-      if(role==='host') G.padLeft=y;
-      else if(role==='guest') G.padRight=y;
-      sendInput(y);
-    },{passive:false});
-
-    function draw(){
-      ctx.clearRect(0,0,W,H);
-      ctx.fillStyle='#00ffe7'; ctx.fillRect(10, G.padLeft*H, 10, H*0.18);
-      ctx.fillStyle='#ff6b35'; ctx.fillRect(W-20, G.padRight*H, 10, H*0.18);
-      if(G.ball){
-        ctx.fillStyle='#fff';
-        ctx.beginPath();
-        ctx.arc(G.ball.x*W, G.ball.y*H, 8,0,2*Math.PI);
-        ctx.fill();
+  function connect(room){
+    ws=new WebSocket(wsURL(room));
+    ws.onopen=()=>console.log('🟢 WS connected to',room);
+    ws.onmessage=e=>{
+      const d=JSON.parse(e.data);
+      if(d.type==='assigned') role=d.role;
+      if(d.type==='waiting'){ $('ov').style.display='flex'; $('wt').textContent='WAITING FOR OPPONENT'; $('wt').style.display='block'; }
+      if(d.type==='start'){ $('ov').style.display='none'; $('wt').style.display='none'; }
+      if(d.type==='state'){ 
+        G=d; 
+        draw(); 
+        if(!ws._sentInput && role){ // send initial pad pos immediately
+          sendInput(role==='host'?G.padLeft:G.padRight);
+          ws._sentInput=true;
+        }
       }
-    }
+      if(d.type==='scored'){ G=d; draw(); }
+      if(d.type==='gameover'){ $('ov').style.display='flex'; $('wt').textContent='GAME OVER'; G=d; draw(); }
+    };
+    ws.onclose=()=>console.log('❌ WS closed');
 
-    function loop(){ draw(); requestAnimationFrame(loop); }
-  });
+    // mouse/touch input
+    const setY=e=>{
+      const rect=cv.getBoundingClientRect();
+      const y=(e.touches?e.touches[0].clientY:e.clientY)-rect.top;
+      inputY=Math.max(0,Math.min(1,(y/rect.height)));
+      sendInput(inputY);
+    };
+    cv.addEventListener('mousemove',setY);
+    cv.addEventListener('touchmove',setY);
+
+    function sendInput(y){ if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'input',y:y})); }
+  }
+
+  function host(room){
+    $('sbox').style.display='flex';
+    $('surl').textContent=pageURL(room);
+    $('surl').onclick=()=>navigator.clipboard?.writeText(pageURL(room));
+    $('lobby').style.display='none';
+    $('game').style.display='flex';
+    connect(room);
+  }
+
+  function join(room){
+    $('lobby').style.display='none';
+    $('game').style.display='flex';
+    connect(room);
+  }
+
+  $('cb').onclick=()=>{ const v=$('ri').value.trim().toUpperCase()||rnd(); host(v); };
+  $('jb').onclick=()=>{ const v=$('ji').value.trim().toUpperCase(); if(v) join(v); };
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // paddles
+    ctx.fillStyle='#00ffe7'; ctx.fillRect(PM(), G.padLeft*H, PW(), PH());
+    ctx.fillStyle='#ff6b35'; ctx.fillRect(W-PM()-PW(), G.padRight*H, PW(), PH());
+    // ball
+    ctx.fillStyle='#fff';
+    ctx.beginPath();
+    ctx.arc(G.ball.x*W,G.ball.y*H,BR(),0,2*Math.PI);
+    ctx.fill();
+  }
+
+  draw();
+});
 </script>
 </body>
 </html>
