@@ -408,12 +408,14 @@
       const cv = document.getElementById('c'), ctx = cv.getContext('2d');
       let W, H;
       function rsz() { W = Math.min(window.innerWidth - 24, 800); H = Math.round(W * .5625); cv.width = W; cv.height = H; }
-      rsz();
-      addEventListener('resize', rsz);
+      rsz(); addEventListener('resize', rsz);
 
       let ws = null, role = null, alive = false;
       const G = { ball: { x: .5, y: .5 }, padLeft: .41, padRight: .41, scores: { left: 0, right: 0 } };
       const $ = id => document.getElementById(id);
+
+      const PAD_MARGIN = 0.025, PAD_H = 0.18, PAD_W = 0.014;
+      function BR() { return Math.max(5, Math.round(W * 0.012)); }
 
       function connect(room) {
         ws = new WebSocket(wsURL(room));
@@ -421,16 +423,19 @@
         ws.onopen = () => console.log('🟢 WS connected to', room);
         ws.onmessage = e => {
           const msg = JSON.parse(e.data);
-          if (msg.type === 'assigned') role = msg.role;
+
           if (msg.type === 'start') {
             $('lobby').style.display = 'none';
             $('game').style.display = 'flex';
             $('stmsg').style.display = 'none';
-            alive = true; animate();
+            alive = true;
+            animate();
           }
+
           if (msg.type === 'state' || msg.type === 'scored') {
             Object.assign(G, msg);
           }
+
           if (msg.type === 'gameover') {
             alert('Winner: ' + msg.winner);
             alive = false;
@@ -449,26 +454,31 @@
       function join(v) { connect(v); history.replaceState({}, '', '/?room=' + v); }
 
       const qRoom = () => new URLSearchParams(location.search).get('room');
-      addEventListener('DOMContentLoaded', () => { const r = qRoom(); if (r) join(r); });
+      if (qRoom()) join(qRoom());
 
       $('cb').onclick = () => { host($('ri').value.trim().toUpperCase()); };
       $('jb').onclick = () => { join($('ji').value.trim().toUpperCase()); };
 
+      // Mouse/touch input
+      cv.addEventListener('pointermove', e => {
+        if (!alive) return;
+        const y = Math.max(0, Math.min(1 - PAD_H, e.offsetY / H));
+        if (ws && ws.readyState === ws.OPEN) ws.send(JSON.stringify({ type: 'input', y }));
+      });
+
       function animate() {
         if (!alive) return;
         ctx.clearRect(0, 0, W, H);
-        // Draw paddles and ball
-        const PL = G.padLeft * H, PR = G.padRight * H;
-        const BALLX = G.ball.x * W, BALLY = G.ball.y * H;
-        ctx.fillStyle = 'var(--p1)'; ctx.fillRect(PAD_MARGIN * W, PL, PAD_W * W, PAD_H * H);
-        ctx.fillStyle = 'var(--p2)'; ctx.fillRect(W - (PAD_MARGIN + PAD_W) * W, PR, PAD_W * W, PAD_H * H);
-        ctx.beginPath(); ctx.arc(BALLX, BALLY, BR(), 0, 2 * Math.PI); ctx.fill();
+
+        // draw paddles
+        ctx.fillStyle = 'var(--p1)'; ctx.fillRect(PAD_MARGIN * W, G.padLeft * H, PAD_W * W, PAD_H * H);
+        ctx.fillStyle = 'var(--p2)'; ctx.fillRect(W - (PAD_MARGIN + PAD_W) * W, G.padRight * H, PAD_W * W, PAD_H * H);
+
+        // draw ball
+        ctx.beginPath(); ctx.arc(G.ball.x * W, G.ball.y * H, BR(), 0, 2 * Math.PI); ctx.fill();
+
         requestAnimationFrame(animate);
       }
-
-      const PAD_MARGIN = 0.025, PAD_H = 0.18, PAD_W = 0.014;
-      function BR() { return Math.max(5, Math.round(W * 0.012)); }
-
     });
   </script>
 </body>
