@@ -53,7 +53,7 @@
       pointer-events: none;
       z-index: 100;
       background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 0, 0, .13) 2px,
-        rgba(0, 0, 0, .13) 4px);
+          rgba(0, 0, 0, .13) 4px);
     }
 
     body::after {
@@ -198,10 +198,24 @@
     }
 
     @keyframes flicker {
-      0%, 94%, 100% { opacity: 1; }
-      95% { opacity: .6; }
-      97% { opacity: 1; }
-      98% { opacity: .4; }
+
+      0%,
+      94%,
+      100% {
+        opacity: 1;
+      }
+
+      95% {
+        opacity: .6;
+      }
+
+      97% {
+        opacity: 1;
+      }
+
+      98% {
+        opacity: .4;
+      }
     }
   </style>
 </head>
@@ -229,68 +243,70 @@
       <div id="wt">WAITING FOR OPPONENT</div>
     </div>
   </div>
-
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       const BASE = 'https://pong-party.onrender.com';
       const $ = id => document.getElementById(id);
       const cv = $('c'), ctx = cv.getContext('2d');
-      let W,H; function rsz(){W=window.innerWidth-24; H=W*0.5625; cv.width=W; cv.height=H;}
-      rsz(); window.addEventListener('resize',rsz);
+      let W, H;
+      function rsz() { W = window.innerWidth - 24; H = Math.round(W * 0.5625); cv.width = W; cv.height = H; }
+      rsz(); window.addEventListener('resize', rsz);
 
-      let ws=null, role=null;
-      let G={ball:{x:.5,y:.5}, padLeft:.41, padRight:.41, scores:{left:0,right:0}};
-      const PW = () => Math.round(W*0.014), PH = () => Math.round(H*0.18), PM = () => Math.round(W*0.025), BR = () => Math.max(5,Math.round(W*0.012));
+      let ws = null, role = null;
+      let G = null; // start as null, only update when server sends state
+      const PW = () => Math.round(W * 0.014), PH = () => Math.round(H * 0.18), PM = () => Math.round(W * 0.025), BR = () => Math.max(5, Math.round(W * 0.012));
 
-      function pageURL(r){ return BASE+'/?room='+encodeURIComponent(r); }
-      function wsURL(r){ return BASE.replace(/^http/, 'ws') + '/party/' + encodeURIComponent(r); }
+      function pageURL(r) { return BASE + '/?room=' + encodeURIComponent(r); }
+      function wsURL(r) { return BASE.replace(/^http/, 'ws') + '/party/' + encodeURIComponent(r); }
+      function rnd() { return Math.random().toString(36).slice(2, 7).toUpperCase(); }
 
-      function rnd(){return Math.random().toString(36).slice(2,7).toUpperCase();}
-
-      function connect(room){
+      function connect(room) {
         ws = new WebSocket(wsURL(room));
-        ws.onopen = ()=>console.log('🟢 WS connected to', room);
-        ws.onmessage = e=>{
-          const d=JSON.parse(e.data);
-          if(d.type==='assigned') role=d.role;
-          if(d.type==='waiting'){ $('ov').style.display='flex'; $('wt').style.display='block'; }
-          if(d.type==='start'){
-            $('ov').style.display='none'; // hide overlay
-            $('wt').style.display='none';
-          }
-          if(d.type==='state'){ G=d; draw(); }
-          if(d.type==='scored'){ G=d; draw(); }
-          if(d.type==='gameover'){ $('ov').style.display='flex'; $('wt').textContent='GAME OVER'; G=d; draw(); }
+        ws.onopen = () => console.log('🟢 WS connected to', room);
+        ws.onmessage = e => {
+          const d = JSON.parse(e.data);
+          if (d.type === 'assigned') role = d.role;
+          if (d.type === 'waiting') { $('ov').style.display = 'flex'; $('wt').textContent = 'WAITING FOR OPPONENT'; }
+          if (d.type === 'start') { $('ov').style.display = 'none'; G = d.state || G; draw(); }
+          if (d.type === 'state') { G = d.state; draw(); }
+          if (d.type === 'scored') { G = d.state; draw(); }
+          if (d.type === 'gameover') { G = d.state; draw(); $('ov').style.display = 'flex'; $('wt').textContent = 'GAME OVER'; }
         };
-        ws.onclose = ()=>console.log('❌ WS closed');
+        ws.onclose = () => console.log('❌ WS closed');
       }
 
-      function host(room){
-        $('sbox').style.display='flex';
-        $('surl').textContent=pageURL(room);
-        $('surl').onclick = ()=>navigator.clipboard?.writeText(pageURL(room));
+      function host(room) {
+        $('sbox').style.display = 'flex';
+        $('surl').textContent = pageURL(room);
+        $('surl').onclick = () => navigator.clipboard?.writeText(pageURL(room));
+        $('ov').style.display = 'flex';
+        $('wt').textContent = 'WAITING FOR OPPONENT';
         connect(room);
       }
 
-      function join(room){ connect(room); }
-
-      $('cb').onclick = ()=>{ const v=$('ri').value.trim().toUpperCase()||rnd(); host(v); };
-      $('jb').onclick = ()=>{ const v=$('ji').value.trim().toUpperCase(); if(v) join(v); };
-
-      function draw(){
-        ctx.clearRect(0,0,W,H);
-        // paddles
-        ctx.fillStyle='#00ffe7'; ctx.fillRect(PM(), G.padLeft*H, PW(), PH());
-        ctx.fillStyle='#ff6b35'; ctx.fillRect(W-PM()-PW(), G.padRight*H, PW(), PH());
-        // ball
-        ctx.fillStyle='#fff';
-        ctx.beginPath();
-        ctx.arc(G.ball.x*W,G.ball.y*H,BR(),0,2*Math.PI);
-        ctx.fill();
+      function join(room) {
+        $('ov').style.display = 'flex';
+        $('wt').textContent = 'CONNECTING...';
+        connect(room);
       }
 
-      draw();
+      $('cb').onclick = () => { const v = $('ri').value.trim().toUpperCase() || rnd(); host(v); };
+      $('jb').onclick = () => { const v = $('ji').value.trim().toUpperCase(); if (v) join(v); };
+
+      function draw() {
+        if (!G) return; // only draw if we have a valid state
+        ctx.clearRect(0, 0, W, H);
+        // paddles
+        ctx.fillStyle = '#00ffe7'; ctx.fillRect(PM(), G.padLeft * H, PW(), PH());
+        ctx.fillStyle = '#ff6b35'; ctx.fillRect(W - PM() - PW(), G.padRight * H, PW(), PH());
+        // ball
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(G.ball.x * W, G.ball.y * H, BR(), 0, 2 * Math.PI);
+        ctx.fill();
+      }
     });
   </script>
 </body>
+
 </html>
