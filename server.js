@@ -8,19 +8,23 @@ import { randomInt } from 'crypto';
 const PORT = process.env.PORT || 3000;
 
 // --- Serve index.html ---
-const server = http.createServer((req, res) => {
-  let filePath = path.join(process.cwd(), 'index.html');
 
-  if (req.url !== '/' && req.url !== '/index.html') {
-    res.writeHead(404);
-    return res.end('Not Found');
+const server = http.createServer((req, res) => {
+  // ✅ Let WebSocket routes pass through
+  if (req.url.startsWith('/party/')) {
+    // Do nothing — WS server will handle upgrade
+    return;
   }
+
+  // Serve index.html for everything else
+  const filePath = path.join(process.cwd(), 'index.html');
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
       res.writeHead(500);
       return res.end('Error loading index.html');
     }
+
     res.writeHead(200, { 'Content-Type': 'text/html' });
     res.end(data);
   });
