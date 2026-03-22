@@ -1,77 +1,65 @@
+import express from 'express';
 import http from 'http';
-import { WebSocketServer } from 'ws';
+import { Server } from 'socket.io';
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  path: '/socket.io',
+  cors: { origin: '*', methods: ['GET', 'POST'] }
+});
 
 const PORT = process.env.PORT || 10000;
 
-const server = http.createServer(); // no express needed
-const wss = new WebSocketServer({ server, path: '/party' });
+const rooms = {};
 
-const rooms = {}; // { roomName: { host: ws, guest: ws } }
+io.on('connection', (socket) => {
+  console.log('🔌 Incoming WS:', socket.handshake.url);
 
-wss.on('connection', (ws, req) => {
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const roomName = url.pathname.split('/').pop(); // /party/ROOM
+  socket.on('join-room', (roomName) => {
+    roomName = roomName.toUpperCase();
+    if (!rooms[roomName]) rooms[roomName] = { host: null, guest: null };
 
-  if (!roomName) {
-    ws.close(1008, 'No room specified');
-    return;
-  }
+    const room = rooms[roomName];
+    let role;
 
-  console.log('🔌 Incoming WS:', url.pathname);
+    if (!room.host) {
+      room.host = socket;
+      role = 'host';
+      console.log('👑 Host joined', roomName);
+    } else if (!room.guest) {
+      room.guest = socket;
+      role = 'guest';
+      console.log('🎯 Guest joined', roomName);
 
-  if (!rooms[roomName]) rooms[roomName] = { host: null, guest: null };
-
-  const room = rooms[roomName];
-  let role;
-
-  if (!room.host) {
-    room.host = ws;
-    role = 'host';
-    console.log('👑 Host joined', roomName);
-  } else if (!room.guest) {
-    room.guest = ws;
-    role = 'guest';
-    console.log('🎯 Guest joined', roomName);
-
-    // START GAME
-    if (room.host.readyState === ws.OPEN) {
-      room.host.send(JSON.stringify({ type: 'start' }));
+      // Start game
+      room.host.emit('start');
+      room.guest.emit('start');
+      console.log('🚀 STARTING GAME', roomName);
+    } else {
+      socket.emit('full');
+      socket.disconnect();
+      return;
     }
-    if (room.guest.readyState === ws.OPEN) {
-      room.guest.send(JSON.stringify({ type: 'start' }));
-    }
-    console.log('🚀 STARTING GAME', roomName);
-  } else {
-    ws.send(JSON.stringify({ type: 'full' }));
-    ws.close();
-    return;
-  }
 
-  ws.role = role;
-  ws.roomName = roomName;
+    socket.role = role;
+    socket.roomName = roomName;
 
-  ws.on('message', (msg) => {
-    // Relay all messages to the other player
-    try {
-      const data = JSON.parse(msg);
+    socket.on('game-data', (data) => {
       const other = role === 'host' ? room.guest : room.host;
-      if (other && other.readyState === ws.OPEN) other.send(JSON.stringify(data));
-    } catch (e) {
-      console.error('⚠️ Invalid message', e);
-    }
-  });
+      if (other) other.emit('game-data', data);
+    });
 
-  ws.on('close', () => {
-    console.log('❌ Disconnect in', roomName);
-    if (role === 'host') room.host = null;
-    if (role === 'guest') room.guest = null;
-    if (!room.host && !room.guest) {
-      delete rooms[roomName];
-      console.log('🗑️ Deleting room', roomName);
-    }
+    socket.on('disconnect', () => {
+      console.log('❌ Disconnect in', roomName);
+      if (role === 'host') room.host = null;
+      if (role === 'guest') room.guest = null;
+      if (!room.host && !room.guest) {
+        delete rooms[roomName];
+        console.log('🗑️ Deleting room', roomName);
+      }
+    });
   });
 });
 
-server.listen(PORT, '0.0.0.0', () =>
-  console.log(`✅ WS server running on port ${PORT}`)
-);
+server.listen(PORT, '0.0.0.0', () => console.log(`✅ Server running on port ${PORT}`));
