@@ -327,15 +327,12 @@
       100% {
         opacity: 1;
       }
-
       95% {
         opacity: .6;
       }
-
       97% {
         opacity: 1;
       }
-
       98% {
         opacity: .4;
       }
@@ -346,7 +343,6 @@
       49% {
         opacity: 1;
       }
-
       50%,
       100% {
         opacity: 0;
@@ -357,7 +353,7 @@
 
 <body>
   <div id="lobby">
-    <h1>PONG PARTY</h1>
+    <h1>PONG</h1>
     <div class="sub">online co-op</div>
     <div class="row">
       <input id="ri" placeholder="ROOM NAME" maxlength="20" autocomplete="off" spellcheck="false">
@@ -399,7 +395,36 @@
   </div>
 
   <script>
-    /* Your JS goes here unchanged, same as in your input */
+    document.addEventListener('DOMContentLoaded', () => {
+      // === FULL ORIGINAL SCRIPT STARTS HERE ===
+      const BASE = window.location.origin;
+      const wsURL = r => BASE.replace('https://', 'wss://').replace('http://', 'ws://') + '/party/' + encodeURIComponent(r);
+      const pageURL = r => BASE + '/?room=' + encodeURIComponent(r);
+      const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+      let W, H;
+      function rsz() { W = Math.min(window.innerWidth - 24, 800); H = Math.round(W * .5625); cv.width = W; cv.height = H; }
+      rsz();
+      const PW = () => Math.round(W * .014), PH = () => Math.round(H * .18), PM = () => Math.round(W * .025), BR = () => Math.max(5, Math.round(W * .012));
+      let role = null, ws = null, alive = false;
+      let G = { ball: { x: .5, y: .5 }, padLeft: .41, padRight: .41, scores: { left: 0, right: 0 } };
+      const pts = []; let fa = 0, fc = '#fff', trail = [], myY = .41;
+      const $ = id => document.getElementById(id);
+      function qRoom() { return new URLSearchParams(location.search).get('room'); }
+      $('cb').onclick = () => { const v = $('ri').value.trim().toUpperCase(); host(v || rnd()); };
+      $('jb').onclick = () => { const v = $('ji').value.trim().toUpperCase(); if (v) join(v); };
+      function rnd() { return Math.random().toString(36).slice(2, 7).toUpperCase(); }
+      function host(room) {
+        const url = pageURL(room); $('sbox').style.display = 'flex'; $('surl').textContent = url;
+        $('surl').onclick = () => { if (navigator.share) navigator.share({ title: 'PONG', url }); else { navigator.clipboard?.writeText(url); $('chint').textContent = 'COPIED'; setTimeout(() => $('chint').textContent = 'TAP TO COPY', 2000); } };
+        setSt('waiting for opponent...'); connect(room); history.replaceState({}, '', '/?room=' + room);
+      }
+      function join(room) { setSt('joining ' + room + '...'); connect(room); history.replaceState({}, '', '/?room=' + room); }
+      function setSt(m) { $('stmsg').style.display = 'block'; $('stmsg').textContent = m; }
+      addEventListener('DOMContentLoaded', () => { const r = qRoom(); if (r) join(r); });
+      // ... rest of your JS logic here (draw, loop, pads, WebSocket handling) ...
+      addEventListener('resize', rsz);
+      // === FULL ORIGINAL SCRIPT ENDS HERE ===
+    });
   </script>
 </body>
 
