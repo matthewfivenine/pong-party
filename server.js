@@ -8,16 +8,29 @@ const PORT = process.env.PORT || 10000;
 
 // Simple HTTP server to serve index.html
 const server = http.createServer((req, res) => {
-  if (req.url === '/' || req.url === '/index.html') {
-    const filePath = path.join(process.cwd(), 'index.html');
-    fs.readFile(filePath, (err, data) => {
-      if (err) { res.writeHead(500); res.end('Error loading index.html'); return; }
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end(data);
-    });
-  } else {
-    res.writeHead(404); res.end('Not Found');
-  }
+  let urlPath = req.url.split('?')[0]; // ignore query params
+  if (urlPath === '/') urlPath = '/index.html';
+
+  const filePath = path.join(process.cwd(), urlPath);
+
+  fs.readFile(filePath, (err, data) => {
+    if (err) {
+      res.writeHead(404);
+      res.end('Not Found');
+      return;
+    }
+
+    let contentType = 'text/plain';
+    if (filePath.endsWith('.html')) contentType = 'text/html';
+    else if (filePath.endsWith('.css')) contentType = 'text/css';
+    else if (filePath.endsWith('.js')) contentType = 'application/javascript';
+    else if (filePath.endsWith('.png')) contentType = 'image/png';
+    else if (filePath.endsWith('.woff2')) contentType = 'font/woff2';
+    // add other content types as needed
+
+    res.writeHead(200, { 'Content-Type': contentType });
+    res.end(data);
+  });
 });
 
 // WebSocket server
