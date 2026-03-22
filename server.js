@@ -1,91 +1,157 @@
-const express=require("express");
-const http=require("http");
-const {Server}=require("socket.io");
-const cors=require("cors");
-const db=require("./db");
+// server.js
+const http = require('http');
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+const WebSocket = require('ws');
 
-const app=express();
-app.use(cors());
-const server=http.createServer(app);
-const io=new Server(server,{cors:{origin:"*"}});
+const PORT = process.env.PORT || 8888;
+const INDEX = path.join(__dirname, 'index.html');
 
-let rooms={};
+// === Serve index.html ===
+const server = http.createServer((req, res) => {
+  if (req.url === '/' || req.url.startsWith('/?room=')) {
+    fs.readFile(INDEX, (err, data) => {
+      if (err) { res.writeHead(500); res.end('Error loading index.html'); return; }
+      res.writeHead(200, {'Content-Type': 'text/html'});
+      res.end(data);
+    });
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
 
-function createGame(p1,p2){
+// === WebSocket server ===
+const wss = new WebSocket.Server({ noServer: true });
+const rooms = {}; // { roomId: { host, guest, ball, vel, pad_l, pad_r, scores, playing } }
+
+function newRoom() {
   return {
-    players:{
-      p1:{id:p1.id,username:p1.username},
-      p2:{id:p2.id,username:p2.username}
-    },
-    paddles:{p1:150,p2:150},
-    ball:{x:300,y:200,vx:4,vy:3},
-    score:{p1:0,p2:0}
+    host: null,
+    guest: null,
+    ball: { x: 0.5, y: 0.5 },
+    vel: { x: 0, y: 0 },
+    pad_l: 0.5 - 0.18/2,
+    pad_r: 0.5 - 0.18/2,
+    scores: { left:0, right:0 },
+    playing: false,
+    stop: false
   };
 }
 
-function resetBall(g){
-  g.ball={x:300,y:200,vx:(Math.random()>0.5?4:-4),vy:(Math.random()*4-2)};
+function resetBall(r, d=1) {
+  r.ball = { x:0.5, y:0.5 };
+  const a = (Math.random()-0.5)*0.5; // angle
+  r.vel = { x: Math.cos(a)*0.007*d, y: Math.sin(a)*0.007 };
 }
 
-function updateBall(g){
-  let b=g.ball;
-  b.x+=b.vx; b.y+=b.vy;
-
-  if(b.y<=0||b.y>=390) b.vy*=-1;
-
-  if(b.x<=20 && Math.abs(b.y-g.paddles.p1)<60){b.vx*=-1.05;b.vy*=1.05;}
-  if(b.x>=580 && Math.abs(b.y-g.paddles.p2)<60){b.vx*=-1.05;b.vy*=1.05;}
-
-  if(b.x<0) return "p2";
-  if(b.x>600) return "p1";
-  return null;
-}
-
-io.on("connection",(s)=>{
-  s.on("join",({username,roomCode})=>{
-    s.username=username;
-    const room=roomCode||"default";
-    s.join(room);
-
-    if(!rooms[room]) rooms[room]={players:[],game:null};
-    rooms[room].players.push(s);
-
-    if(rooms[room].players.length===2){
-      const [p1,p2]=rooms[room].players;
-      rooms[room].game=createGame(p1,p2);
-      p1.room=room; p2.room=room;
-    }
+function broadcast(r, msg) {
+  const data = JSON.stringify(msg);
+  [r.host, r.guest].forEach(c => {
+    if (c && c.readyState === WebSocket.OPEN) c.send(data);
   });
+}
 
-  s.on("move",({y})=>{
-    const r=s.room;
-    if(!r||!rooms[r]) return;
-    const g=rooms[r].game;
-    if(!g) return;
+// === Game loop ===
+function gameLoop(roomId) {
+  const r = rooms[roomId];
+  if (!r) return;
 
-    if(s.id===g.players.p1.id) g.paddles.p1=y;
-    if(s.id===g.players.p2.id) g.paddles.p2=y;
+  const TICK = 1000/60;
+  const BALL_R = 0.012, PAD_H = 0.18, PAD_W = 0.014, PAD_MARGIN=0.025;
+  const SPEED_INC = 0.00025, SPEED_MAX=0.018, WIN=7;
+
+  const loop = () => {
+    if (!r.playing || r.stop) return;
+
+    let b = r.ball, v = r.vel, pl = r.pad_l, pr = r.pad_r;
+
+    b.x += v.x; b.y += v.y;
+
+    // bounce top/bottom
+    if (b.y - BALL_R < 0) { b.y = BALL_R; v.y = Math.abs(v.y); }
+    if (b.y + BALL_R > 1) { b.y = 1-BALL_R; v.y = -Math.abs(v.y); }
+
+    // bounce paddles
+    const lx = PAD_MARGIN, rx = 1-PAD_MARGIN-PAD_W;
+
+    if (v.x<0 && b.x-BALL_R<lx+PAD_W && b.x+BALL_R>lx && b.y>pl && b.y<pl+PAD_H) {
+      const rel = (b.y-(pl+PAD_H/2))/(PAD_H/2);
+      const spd = Math.min(Math.hypot(v.x,v.y)+SPEED_INC, SPEED_MAX);
+      v.x = spd*Math.cos(rel*0.75);
+      v.y = spd*Math.sin(rel*0.75);
+      b.x = lx+PAD_W+BALL_R;
+    }
+
+    if (v.x>0 && b.x+BALL_R>rx && b.x-BALL_R<rx+PAD_W && b.y>pr && b.y<pr+PAD_H) {
+      const rel = (b.y-(pr+PAD_H/2))/(PAD_H/2);
+      const spd = Math.min(Math.hypot(v.x,v.y)+SPEED_INC, SPEED_MAX);
+      v.x = -spd*Math.cos(rel*0.75);
+      v.y = spd*Math.sin(rel*0.75);
+      b.x = rx-BALL_R;
+    }
+
+    let scored = null;
+    if (b.x+BALL_R<0) { r.scores.right++; scored="right"; }
+    if (b.x-BALL_R>1) { r.scores.left++; scored="left"; }
+
+    if (scored) {
+      broadcast(r,{ type:'scored', side:scored, scores:r.scores });
+      if (r.scores.left>=WIN || r.scores.right>=WIN) {
+        const w = r.scores.left>=WIN?'left':'right';
+        r.playing=false; broadcast(r,{type:'gameover', winner:w});
+        return;
+      }
+      resetBall(r, r.scores.left>r.scores.right ? 1 : -1);
+    } else {
+      broadcast(r,{ type:'state', ball:b, padLeft:pl, padRight:pr, scores:r.scores });
+    }
+
+    setTimeout(loop, TICK);
+  };
+  loop();
+}
+
+// === Upgrade requests ===
+server.on('upgrade', (req, socket, head) => {
+  const match = req.url.match(/^\/party\/(.+)/);
+  if (!match) { socket.destroy(); return; }
+  const roomId = decodeURIComponent(match[1]);
+
+  wss.handleUpgrade(req, socket, head, ws => {
+    wss.emit('connection', ws, roomId);
   });
 });
 
-setInterval(()=>{
-  for(const r in rooms){
-    const g=rooms[r].game;
-    if(!g) continue;
+// === WebSocket connection ===
+wss.on('connection', (ws, roomId) => {
+  if (!rooms[roomId]) rooms[roomId] = newRoom();
+  const r = rooms[roomId];
 
-    const scorer=updateBall(g);
+  let role;
+  if (!r.host) { r.host=ws; role='host'; ws.send(JSON.stringify({type:'assigned',role:'host'})); ws.send(JSON.stringify({type:'waiting'})); }
+  else if (!r.guest) { r.guest=ws; role='guest'; r.scores={left:0,right:0}; r.pad_l=r.pad_r=0.5-0.18/2; r.playing=true; r.stop=false; resetBall(r, Math.random()>0.5?1:-1); broadcast(r,{type:'start'}); gameLoop(roomId); ws.send(JSON.stringify({type:'assigned',role:'guest'})); }
+  else { role='spectator'; ws.send(JSON.stringify({type:'assigned',role:'spectator'})); }
 
-    if(scorer){
-      g.score[scorer]++;
-      if(g.score[scorer]>=5){
-        io.to(r).emit("game_over", g.players[scorer].username);
-        g.score={p1:0,p2:0};
+  ws.on('message', msg => {
+    try {
+      const data = JSON.parse(msg);
+      if (data.type==='input') {
+        const y = Math.max(0, Math.min(1-0.18, data.y));
+        if (role==='host') r.pad_l=y;
+        if (role==='guest') r.pad_r=y;
       }
-      resetBall(g);
-    }
+    } catch(e){}
+  });
 
-    io.to(r).emit("state",g);
-  }
-},1000/60);
+  ws.on('close', () => {
+    if (r.host===ws) r.host=null;
+    if (r.guest===ws) r.guest=null;
+    r.playing=false; r.stop=true;
+    if (!r.host && !r.guest) delete rooms[roomId];
+    else broadcast(r,{type:'waiting'});
+  });
+});
 
-server.listen(3000);
+server.listen(PORT, () => console.log(`Pong server running on port ${PORT}`));
