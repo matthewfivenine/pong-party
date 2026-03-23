@@ -253,7 +253,7 @@ canvas{
   <div id="ov">
     <div class="pulse"></div>
     <div id="wt">WAITING FOR OPPONENT</div>
-    <div class="ov-sub" id="ov-sub">share the room code to invite a friend</div>
+    <div class="ov-sub" id="ov-sub">share the room link to invite a friend</div>
     <div id="ov-btn"><button id="play-again">PLAY AGAIN</button></div>
   </div>
 </div>
@@ -363,8 +363,17 @@ document.addEventListener('DOMContentLoaded', () => {
       sendInput(y);
     };
 
+    const setYTouch = e => {
+      e.preventDefault();
+      const rect = cv.getBoundingClientRect();
+      const clientY = e.touches[0].clientY;
+      const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+      sendInput(y);
+    };
+
     cv.addEventListener('mousemove', setY, { passive: false });
-    cv.addEventListener('touchmove', setY, { passive: false });
+    document.addEventListener('touchmove', setYTouch, { passive: false });
+    document.addEventListener('touchstart', setYTouch, { passive: false });
   }
 
   // ── HOST / JOIN ───────────────────────────────────────────────────────────
