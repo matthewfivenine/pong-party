@@ -355,25 +355,39 @@ document.addEventListener('DOMContentLoaded', () => {
         ws.send(JSON.stringify({ type: 'input', y }));
     }
 
-    const setY = e => {
+    let lastClientY = null;
+    let padY = role === 'host' ? G.padLeft : G.padRight;
+
+    // Keep padY in sync when server sends state
+    const _origOnMessage = ws.onmessage;
+    ws.addEventListener('message', e => {
+      const d = JSON.parse(e.data);
+      if (d.type === 'state') padY = role === 'host' ? d.padLeft : d.padRight;
+    });
+
+    const onDragStart = e => {
       e.preventDefault();
-      const rect = cv.getBoundingClientRect();
+      lastClientY = e.touches ? e.touches[0].clientY : e.clientY;
+    };
+
+    const onDragMove = e => {
+      e.preventDefault();
+      if (lastClientY === null) return;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-      sendInput(y);
+      const delta = (clientY - lastClientY) / H; // normalised delta
+      lastClientY = clientY;
+      padY = Math.max(0, Math.min(1 - 0.18, padY + delta));
+      sendInput(padY);
     };
 
-    const setYTouch = e => {
-      e.preventDefault();
-      const rect = cv.getBoundingClientRect();
-      const clientY = e.touches[0].clientY;
-      const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
-      sendInput(y);
-    };
+    const onDragEnd = () => { lastClientY = null; };
 
-    cv.addEventListener('mousemove', setY, { passive: false });
-    document.addEventListener('touchmove', setYTouch, { passive: false });
-    document.addEventListener('touchstart', setYTouch, { passive: false });
+    document.addEventListener('mousedown',  onDragStart, { passive: false });
+    document.addEventListener('mousemove',  onDragMove,  { passive: false });
+    document.addEventListener('mouseup',    onDragEnd);
+    document.addEventListener('touchstart', onDragStart, { passive: false });
+    document.addEventListener('touchmove',  onDragMove,  { passive: false });
+    document.addEventListener('touchend',   onDragEnd);
   }
 
   // ── HOST / JOIN ───────────────────────────────────────────────────────────
