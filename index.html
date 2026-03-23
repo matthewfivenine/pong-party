@@ -5,136 +5,507 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#050a0e">
+<meta name="theme-color" content="#04080d">
 <title>Pong Party</title>
 <style>
-/* KEEP your full CSS exactly as before, no changes */
 @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap');
+
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--p1:#00ffe7;--p2:#ff6b35}
-html,body{width:100%;height:100%;overflow:hidden;touch-action:none;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;background:#050a0e}
-body{display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Share Tech Mono',monospace;color:var(--p1)}
-body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:100;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.13) 2px,rgba(0,0,0,.13) 4px)}
-body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:101;background:radial-gradient(ellipse at center,transparent 60%,rgba(0,0,0,.7) 100%)}
-#lobby{display:flex;flex-direction:column;align-items:center;gap:20px;text-align:center;padding:0 24px;width:100%;max-width:440px}
-#lobby h1{font-family:'Orbitron',sans-serif;font-size:clamp(32px,12vw,52px);font-weight:900;letter-spacing:12px;text-shadow:0 0 30px var(--p1),0 0 60px var(--p1);animation:flicker 4s infinite}
-.sub{font-size:clamp(10px,3vw,12px);letter-spacing:5px;color:rgba(255,255,255,.35)}
-.row{display:flex;gap:8px;align-items:center;width:100%}
-input{background:rgba(0,255,231,.05);border:1px solid rgba(0,255,231,.25);color:var(--p1);font-family:'Share Tech Mono',monospace;font-size:16px;letter-spacing:2px;padding:12px 14px;outline:none;flex:1;min-width:0;text-transform:uppercase;caret-color:var(--p1);-webkit-appearance:none;border-radius:0}
-input::placeholder{color:rgba(0,255,231,.2)}
-input:focus{border-color:rgba(0,255,231,.5)}
-button{background:transparent;border:1px solid var(--p1);color:var(--p1);font-family:'Orbitron',sans-serif;font-size:11px;font-weight:700;letter-spacing:3px;padding:12px 16px;cursor:pointer;text-transform:uppercase;-webkit-appearance:none;border-radius:0;min-height:44px;white-space:nowrap}
-button:active{background:rgba(0,255,231,.12)}
-#sbox{display:none;flex-direction:column;align-items:center;gap:10px;width:100%}
-#surl{font-size:11px;color:var(--p1);background:rgba(0,255,231,.05);border:1px solid rgba(0,255,231,.2);padding:10px 14px;cursor:pointer;width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#game{display:none;flex-direction:column;align-items:center}
-canvas{display:block;border:1px solid rgba(0,255,231,.18);box-shadow:0 0 40px rgba(0,255,231,.07);touch-action:none}
-#ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(5,10,14,.88);backdrop-filter:blur(2px)}
-#wt{font-family:'Orbitron',sans-serif;font-size:clamp(14px,4vw,16px);font-weight:700;letter-spacing:5px}
-@keyframes flicker{0%,94%,100%{opacity:1}95%{opacity:.6}97%{opacity:1}98%{opacity:.4}}
+:root{
+  --c:#04080d;
+  --p1:#00ffe7;
+  --p2:#ff6b35;
+  --mid:rgba(255,255,255,0.06);
+  --border:rgba(0,255,231,0.18);
+}
+
+html,body{
+  width:100%;height:100%;overflow:hidden;
+  touch-action:none;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none;user-select:none;
+  background:var(--c);
+}
+
+body{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  font-family:'Share Tech Mono',monospace;
+  color:var(--p1);
+}
+
+/* CRT scanlines */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:200;
+  background:repeating-linear-gradient(
+    0deg,transparent,transparent 2px,
+    rgba(0,0,0,.10) 2px,rgba(0,0,0,.10) 4px
+  );
+}
+/* Vignette */
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:199;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.75) 100%);
+}
+
+/* ── LOBBY ── */
+#lobby{
+  display:flex;flex-direction:column;align-items:center;
+  gap:18px;text-align:center;padding:0 24px;
+  width:100%;max-width:460px;
+  position:relative;z-index:1;
+}
+
+#lobby h1{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(34px,11vw,56px);
+  font-weight:900;
+  letter-spacing:10px;
+  text-transform:uppercase;
+  text-shadow:0 0 24px var(--p1),0 0 60px rgba(0,255,231,.4);
+  animation:flicker 5s infinite;
+  line-height:1;
+}
+
+.sub{
+  font-size:clamp(9px,2.5vw,11px);
+  letter-spacing:6px;
+  color:rgba(255,255,255,.28);
+  text-transform:uppercase;
+  margin-top:-8px;
+}
+
+.divider{
+  width:100%;height:1px;
+  background:linear-gradient(90deg,transparent,var(--border),transparent);
+  margin:4px 0;
+}
+
+.section-label{
+  font-size:9px;letter-spacing:5px;
+  color:rgba(0,255,231,.35);
+  text-transform:uppercase;
+  align-self:flex-start;
+  margin-bottom:-6px;
+}
+
+.row{display:flex;gap:8px;align-items:stretch;width:100%}
+
+input{
+  background:rgba(0,255,231,.04);
+  border:1px solid rgba(0,255,231,.2);
+  color:var(--p1);
+  font-family:'Share Tech Mono',monospace;
+  font-size:15px;letter-spacing:3px;
+  padding:11px 14px;outline:none;flex:1;min-width:0;
+  text-transform:uppercase;
+  caret-color:var(--p1);
+  -webkit-appearance:none;border-radius:0;
+  transition:border-color .2s,background .2s;
+}
+input::placeholder{color:rgba(0,255,231,.18)}
+input:focus{
+  border-color:rgba(0,255,231,.5);
+  background:rgba(0,255,231,.07);
+}
+
+button{
+  background:transparent;
+  border:1px solid var(--p1);
+  color:var(--p1);
+  font-family:'Orbitron',sans-serif;
+  font-size:10px;font-weight:700;
+  letter-spacing:2px;
+  padding:11px 18px;
+  cursor:pointer;text-transform:uppercase;
+  -webkit-appearance:none;border-radius:0;
+  min-height:44px;white-space:nowrap;
+  transition:background .15s,box-shadow .15s;
+  position:relative;overflow:hidden;
+}
+button::after{
+  content:'';position:absolute;inset:0;
+  background:var(--p1);opacity:0;
+  transition:opacity .15s;
+}
+button:hover{box-shadow:0 0 16px rgba(0,255,231,.3);}
+button:active::after{opacity:.12;}
+
+button.p2{border-color:var(--p2);color:var(--p2);}
+button.p2::after{background:var(--p2);}
+button.p2:hover{box-shadow:0 0 16px rgba(255,107,53,.3);}
+
+/* share box */
+#sbox{display:none;flex-direction:column;align-items:center;gap:8px;width:100%}
+.share-label{font-size:9px;letter-spacing:4px;color:rgba(255,255,255,.28);align-self:flex-start;}
+#surl{
+  font-size:11px;letter-spacing:1px;
+  color:rgba(0,255,231,.7);
+  background:rgba(0,255,231,.04);
+  border:1px solid rgba(0,255,231,.15);
+  padding:10px 14px;
+  cursor:pointer;width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  transition:background .15s;
+}
+#surl:hover{background:rgba(0,255,231,.08);}
+#copied{
+  font-size:9px;letter-spacing:3px;
+  color:var(--p1);opacity:0;
+  transition:opacity .3s;
+  height:12px;
+}
+
+/* ── GAME ── */
+#game{
+  display:none;flex-direction:column;
+  align-items:center;
+  position:relative;
+}
+
+canvas{
+  display:block;
+  border:1px solid var(--border);
+  box-shadow:0 0 60px rgba(0,255,231,.05),0 0 120px rgba(0,0,0,.5);
+  touch-action:none;
+}
+
+/* overlay */
+#ov{
+  position:absolute;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:16px;
+  background:rgba(4,8,13,.88);
+  backdrop-filter:blur(4px);
+  top:0;left:0;right:0;bottom:0;
+}
+#wt{
+  font-family:'Orbitron',sans-serif;
+  font-size:clamp(12px,3.5vw,15px);
+  font-weight:700;letter-spacing:4px;
+  text-align:center;padding:0 16px;
+}
+#ov .ov-sub{
+  font-size:10px;letter-spacing:3px;
+  color:rgba(255,255,255,.3);
+}
+#ov-btn{display:none;}
+#ov-btn button{font-size:10px;letter-spacing:3px;padding:10px 24px;}
+
+/* pulse dot for waiting */
+.pulse{
+  width:8px;height:8px;border-radius:50%;
+  background:var(--p1);
+  box-shadow:0 0 8px var(--p1);
+  animation:pulse 1.2s infinite;
+}
+@keyframes pulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.5);opacity:.5}}
+
+/* role tag */
+#roletag{
+  font-size:9px;letter-spacing:4px;
+  color:rgba(255,255,255,.28);
+  margin-top:6px;
+  text-transform:uppercase;
+}
+
+@keyframes flicker{
+  0%,92%,100%{opacity:1}
+  93%{opacity:.55}95%{opacity:1}96%{opacity:.4}97%{opacity:1}
+}
 </style>
 </head>
 <body>
+
+<!-- LOBBY -->
 <div id="lobby">
   <h1>Pong Party</h1>
-  <div class="sub">online co-op</div>
+  <div class="sub">online · 1 v 1</div>
+
+  <div class="divider"></div>
+
+  <div class="section-label">Host a room</div>
   <div class="row">
     <input id="ri" placeholder="ROOM NAME" maxlength="20" autocomplete="off" spellcheck="false">
     <button id="cb">CREATE</button>
   </div>
+
+  <div id="sbox">
+    <div class="share-label">share link with opponent ↓</div>
+    <div id="surl"></div>
+    <div id="copied">COPIED ✓</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section-label">Join a room</div>
   <div class="row">
     <input id="ji" placeholder="ROOM NAME" maxlength="20" autocomplete="off" spellcheck="false">
-    <button id="jb">JOIN</button>
+    <button id="jb" class="p2">JOIN</button>
   </div>
-  <div id="sbox"><div id="surl"></div></div>
 </div>
 
+<!-- GAME -->
 <div id="game">
   <canvas id="c"></canvas>
+  <div id="roletag"></div>
   <div id="ov">
+    <div class="pulse"></div>
     <div id="wt">WAITING FOR OPPONENT</div>
+    <div class="ov-sub" id="ov-sub">share the room link to invite a friend</div>
+    <div id="ov-btn"><button id="play-again">PLAY AGAIN</button></div>
   </div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded',()=>{
-  const BASE='https://pong-party.onrender.com';
-  const $=id=>document.getElementById(id);
-  const cv=$('c'), ctx=cv.getContext('2d');
-  let W,H; function rsz(){W=window.innerWidth-24; H=W*0.5625; cv.width=W; cv.height=H;}
-  rsz(); window.addEventListener('resize',rsz);
+document.addEventListener('DOMContentLoaded', () => {
 
-  let ws=null, role=null, inputY=0;
-  let G={ball:{x:.5,y:.5},padLeft:.41,padRight:.41,scores:{left:0,right:0}};
-  const PW=()=>Math.round(W*0.014), PH=()=>Math.round(H*0.18), PM=()=>Math.round(W*0.025), BR=()=>Math.max(5,Math.round(W*0.012));
+  const BASE = 'https://pong-party.onrender.com';
+  const $ = id => document.getElementById(id);
+  const cv = $('c'), ctx = cv.getContext('2d');
 
-  function pageURL(r){ return BASE+'/?room='+encodeURIComponent(r); }
-  function wsURL(r){ return BASE.replace(/^http/,'ws')+'/party/'+encodeURIComponent(r); }
+  let ws = null, role = null, currentRoom = null;
+  let G = { ball: { x: .5, y: .5 }, padLeft: .41, padRight: .41, scores: { left: 0, right: 0 } };
 
-  function rnd(){return Math.random().toString(36).slice(2,7).toUpperCase();}
+  // sizing helpers
+  const PW = () => Math.max(4, Math.round(W * 0.014));
+  const PH = () => Math.round(H * 0.18);
+  const PM = () => Math.round(W * 0.025);
+  const BR = () => Math.max(5, Math.round(W * 0.012));
 
-  function connect(room){
-    ws=new WebSocket(wsURL(room));
-    ws.onopen=()=>console.log('🟢 WS connected to',room);
-    ws.onmessage=e=>{
-      const d=JSON.parse(e.data);
-      if(d.type==='assigned') role=d.role;
-      if(d.type==='waiting'){ $('ov').style.display='flex'; $('wt').textContent='WAITING FOR OPPONENT'; $('wt').style.display='block'; }
-      if(d.type==='start'){ $('ov').style.display='none'; $('wt').style.display='none'; }
-      if(d.type==='state'){ 
-        G=d; 
-        draw(); 
-        if(!ws._sentInput && role){ // send initial pad pos immediately
-          sendInput(role==='host'?G.padLeft:G.padRight);
-          ws._sentInput=true;
+  let W, H;
+  function rsz() {
+    const maxW = Math.min(window.innerWidth - 24, 800);
+    W = maxW;
+    H = Math.round(W * 0.5625);
+    cv.width = W; cv.height = H;
+    draw();
+  }
+  rsz();
+  window.addEventListener('resize', rsz);
+
+  function pageURL(r) { return BASE + '/?room=' + encodeURIComponent(r); }
+  function wsURL(r)   { return BASE.replace(/^http/, 'ws') + '/party/' + encodeURIComponent(r); }
+  function rnd()      { return Math.random().toString(36).slice(2, 7).toUpperCase(); }
+
+  // ── CONNECT ──────────────────────────────────────────────────────────────
+  function connect(room) {
+    currentRoom = room;
+    ws = new WebSocket(wsURL(room));
+
+    ws.onopen = () => console.log('🟢 WS connected to', room);
+
+    ws.onmessage = e => {
+      const d = JSON.parse(e.data);
+
+      if (d.type === 'assigned') {
+        role = d.role;
+        $('roletag').textContent = role === 'host' ? '▶ YOU ARE LEFT (CYAN)' : '▶ YOU ARE RIGHT (ORANGE)';
+        $('roletag').style.color = role === 'host' ? 'rgba(0,255,231,.4)' : 'rgba(255,107,53,.4)';
+      }
+
+      if (d.type === 'start') {
+        $('ov').style.display = 'none';
+        G.scores = { left: 0, right: 0 };
+      }
+
+      if (d.type === 'state') {
+        // Full state from server — update everything
+        G.ball     = d.ball;
+        G.padLeft  = d.padLeft;
+        G.padRight = d.padRight;
+        G.scores   = d.scores;
+        draw();
+
+        if (!ws._sentInput && role) {
+          sendInput(role === 'host' ? G.padLeft : G.padRight);
+          ws._sentInput = true;
         }
       }
-      if(d.type==='scored'){ G=d; draw(); }
-      if(d.type==='gameover'){ $('ov').style.display='flex'; $('wt').textContent='GAME OVER'; G=d; draw(); }
-    };
-    ws.onclose=()=>console.log('❌ WS closed');
 
-    // mouse/touch input
-    const setY=e=>{
-      const rect=cv.getBoundingClientRect();
-      const y=(e.touches?e.touches[0].clientY:e.clientY)-rect.top;
-      inputY=Math.max(0,Math.min(1,(y/rect.height)));
-      sendInput(inputY);
-    };
-    cv.addEventListener('mousemove',setY);
-    cv.addEventListener('touchmove',setY);
+      if (d.type === 'scored') {
+        // Only update scores — preserve existing ball/pad state
+        G.scores = d.scores;
+        draw();
+      }
 
-    function sendInput(y){ if(ws && ws.readyState===WebSocket.OPEN) ws.send(JSON.stringify({type:'input',y:y})); }
+      if (d.type === 'gameover') {
+        // Only update scores — ball state may be stale but that's fine for final frame
+        if (d.scores) G.scores = d.scores;
+        draw();
+
+        const winner = d.winner === 'left' ? 'LEFT (CYAN)' : 'RIGHT (ORANGE)';
+        $('ov').style.display = 'flex';
+        $('wt').textContent   = winner + ' WINS!';
+        $('wt').style.color   = d.winner === 'left' ? 'var(--p1)' : 'var(--p2)';
+        $('ov-sub').textContent = 'final score  ' + G.scores.left + ' – ' + G.scores.right;
+        document.querySelector('.pulse').style.display = 'none';
+        $('ov-btn').style.display = 'block';
+      }
+    };
+
+    ws.onclose = () => {
+      console.log('❌ WS closed');
+    };
+
+    // ── INPUT ──────────────────────────────────────────────
+    function sendInput(y) {
+      if (ws && ws.readyState === WebSocket.OPEN)
+        ws.send(JSON.stringify({ type: 'input', y }));
+    }
+
+    const setY = e => {
+      e.preventDefault();
+      const rect = cv.getBoundingClientRect();
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      const y = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+      sendInput(y);
+    };
+
+    cv.addEventListener('mousemove', setY, { passive: false });
+    cv.addEventListener('touchmove', setY, { passive: false });
   }
 
-  function host(room){
-    $('sbox').style.display='flex';
-    $('surl').textContent=pageURL(room);
-    $('surl').onclick=()=>navigator.clipboard?.writeText(pageURL(room));
-    $('lobby').style.display='none';
-    $('game').style.display='flex';
+  // ── HOST / JOIN ───────────────────────────────────────────────────────────
+  function host(room) {
+    $('sbox').style.display  = 'flex';
+    $('surl').textContent    = pageURL(room);
+    $('surl').onclick        = () => {
+      navigator.clipboard?.writeText(pageURL(room)).then(() => {
+        const c = $('copied'); c.style.opacity = 1;
+        setTimeout(() => c.style.opacity = 0, 1500);
+      });
+    };
+    enterGame();
     connect(room);
   }
 
-  function join(room){
-    $('lobby').style.display='none';
-    $('game').style.display='flex';
+  function join(room) {
+    enterGame();
     connect(room);
   }
 
-  $('cb').onclick=()=>{ const v=$('ri').value.trim().toUpperCase()||rnd(); host(v); };
-  $('jb').onclick=()=>{ const v=$('ji').value.trim().toUpperCase(); if(v) join(v); };
+  function enterGame() {
+    $('lobby').style.display = 'none';
+    $('game').style.display  = 'flex';
+    // reset overlay
+    $('ov').style.display    = 'flex';
+    $('wt').textContent      = 'WAITING FOR OPPONENT';
+    $('wt').style.color      = 'var(--p1)';
+    $('ov-sub').textContent  = 'share the room link to invite a friend';
+    $('ov-btn').style.display = 'none';
+    document.querySelector('.pulse').style.display = 'block';
+  }
 
-  function draw(){
-    ctx.clearRect(0,0,W,H);
-    // paddles
-    ctx.fillStyle='#00ffe7'; ctx.fillRect(PM(), G.padLeft*H, PW(), PH());
-    ctx.fillStyle='#ff6b35'; ctx.fillRect(W-PM()-PW(), G.padRight*H, PW(), PH());
-    // ball
-    ctx.fillStyle='#fff';
+  $('cb').onclick = () => {
+    const v = $('ri').value.trim().toUpperCase() || rnd();
+    host(v);
+  };
+
+  $('jb').onclick = () => {
+    const v = $('ji').value.trim().toUpperCase();
+    if (v) join(v);
+  };
+
+  $('ri').addEventListener('keydown', e => { if (e.key === 'Enter') $('cb').click(); });
+  $('ji').addEventListener('keydown', e => { if (e.key === 'Enter') $('jb').click(); });
+
+  $('play-again').onclick = () => {
+    if (currentRoom) {
+      // reconnect
+      if (ws) ws.close();
+      ws = null;
+      G = { ball: { x: .5, y: .5 }, padLeft: .41, padRight: .41, scores: { left: 0, right: 0 } };
+      $('ov').style.display    = 'flex';
+      $('wt').textContent      = 'WAITING FOR OPPONENT';
+      $('wt').style.color      = 'var(--p1)';
+      $('ov-sub').textContent  = 'reconnecting...';
+      $('ov-btn').style.display = 'none';
+      document.querySelector('.pulse').style.display = 'block';
+      connect(currentRoom);
+    }
+  };
+
+  // URL-based auto-join (?room=XXX)
+  const params = new URLSearchParams(location.search);
+  const autoRoom = params.get('room');
+  if (autoRoom) {
+    $('ji').value = autoRoom.toUpperCase();
+    join(autoRoom.toUpperCase());
+  }
+
+  // ── DRAW ──────────────────────────────────────────────────────────────────
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    // Background subtle grid
+    ctx.strokeStyle = 'rgba(0,255,231,0.03)';
+    ctx.lineWidth = 1;
+    const gridSize = Math.round(H / 8);
+    for (let x = 0; x < W; x += gridSize) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y < H; y += gridSize) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+
+    // Center dashed line
+    ctx.setLineDash([Math.round(H * 0.04), Math.round(H * 0.025)]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(G.ball.x*W,G.ball.y*H,BR(),0,2*Math.PI);
-    ctx.fill();
+    ctx.moveTo(W / 2, 0);
+    ctx.lineTo(W / 2, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // ── Scores ──
+    const scoreFont = `900 ${Math.round(H * 0.14)}px Orbitron, monospace`;
+    ctx.font = scoreFont;
+    ctx.textBaseline = 'top';
+
+    // left score
+    ctx.fillStyle = 'rgba(0,255,231,0.55)';
+    ctx.textAlign = 'right';
+    ctx.fillText(G.scores?.left ?? 0, W / 2 - Math.round(W * 0.04), Math.round(H * 0.05));
+
+    // right score
+    ctx.fillStyle = 'rgba(255,107,53,0.55)';
+    ctx.textAlign = 'left';
+    ctx.fillText(G.scores?.right ?? 0, W / 2 + Math.round(W * 0.04), Math.round(H * 0.05));
+
+    // ── Left paddle (cyan) ──
+    const pw = PW(), ph = PH(), pm = PM();
+    const gL = ctx.createLinearGradient(pm, 0, pm + pw, 0);
+    gL.addColorStop(0, 'rgba(0,255,231,1)');
+    gL.addColorStop(1, 'rgba(0,255,231,0.6)');
+    ctx.fillStyle = gL;
+    ctx.shadowColor = 'rgba(0,255,231,0.7)';
+    ctx.shadowBlur = 14;
+    ctx.fillRect(pm, Math.round(G.padLeft * H), pw, ph);
+
+    // ── Right paddle (orange) ──
+    const gR = ctx.createLinearGradient(W - pm - pw, 0, W - pm, 0);
+    gR.addColorStop(0, 'rgba(255,107,53,0.6)');
+    gR.addColorStop(1, 'rgba(255,107,53,1)');
+    ctx.fillStyle = gR;
+    ctx.shadowColor = 'rgba(255,107,53,0.7)';
+    ctx.shadowBlur = 14;
+    ctx.fillRect(W - pm - pw, Math.round(G.padRight * H), pw, ph);
+
+    // ── Ball ──
+    if (G.ball) {
+      const bx = G.ball.x * W, by = G.ball.y * H, br = BR();
+      ctx.shadowColor = 'rgba(255,255,255,0.9)';
+      ctx.shadowBlur = 18;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(bx, by, br, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.shadowBlur = 0;
   }
 
   draw();
